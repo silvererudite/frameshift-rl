@@ -14,6 +14,10 @@
   whether the input base is at a token edge or inside a token. There is no boundary effect because there is no skill for
   segmentation to disrupt.
 
+- **A DNA-trained model has the skill, and its errors follow its tokenizer.** Carbon-X (Qwen3-14B DNA fine-tune, 4-bit)
+  reverse-complements **68.5%** of the same prompts exactly, but counts GC correctly only **10.6%** of the time. Its
+  revcomp accuracy falls from 77–83% to **44%** as the padded leftover 6-mer grows from 0–2 to 5 bases.
+
 ![What the answers are](figures/fig9_what_the_answers_are.png)
 
 ## Setup
@@ -93,16 +97,31 @@ On 24 fixed probe prompts (greedy decoding, checked every 10 steps), verbatim co
 exact-match reward the same curves stay flat. The probe grid grey (wrong-length) rows turning into full-length rows
 over training, with the same ~25% scatter of correct bases a copy produces.
 
+### 6. Validation with Carbon-X ([Fig 11](figures/fig11_carbon_x_vs_qwen.png), [Fig 12](figures/fig12_carbon_x_error_positions.png), [Fig 13](figures/fig13_carbon_x_leftover_chunk.png))
+
+`HuggingFaceBio/Carbon-X` (Qwen3-14B DNA fine-tune, hybrid tokenizer with non-overlapping 6-mers and padded tail
+tokens), eval only, 4-bit NF4 on one T4, same 240 prompts × 4 samples, same sampling (T 0.7, top-p 0.8) and scoring.
+Kernel `shamimahossain/dna-grpo-carbon`, ~25 min of generation per run.
+
+- **Reverse complement: 68.5% exact** (84% / 63% / 58% for 12–30 / 31–60 / 61–90 bp), pass@4 = 83%. Length-correct
+  answers have 96% per-base agreement, and verbatim copies are 1%. Base-model pass@k is high, so GRPO would have signal.
+- **GC count: 10.6% exact** (median absolute error 2, 34% within ±1), consistent with the model card's note on miscounting.
+- **Leftover 6-mer:** exact accuracy by sequence length mod 6 is 77%, 76%, 83%, 70%, 60%, 44% (for 0…5 leftover bases).
+  Wrong-length rate rises from 12% to 46%. 62% of length errors are off by ≤2 bases, and only 17% by a multiple of 6.
+  Within full 6-mers, per-base error is flat across positions 0–5 (4.6–5.2%; edge 4.9% vs interior 4.8%).
+- The "perbase" (spaced) run is re-tokenized into the same 6-mers by Carbon-X's DNA detector (verified from the logged
+  prompt tokens), so it is a sampling replicate (66.7% exact), not a different view.
+
 ## What this means for DNA LMs like Carbon-X
 
-We could not test the hypothesis that segmentation caps what RL can reach. A general-purpose 0.6B model has no
-reverse-complement skill in *any* input view, so the format effect has nothing to act on. Two lessons do carry over.
-First, on-policy RL with verifiable rewards only amplifies behaviour the model already has: pass@8 = 0 means no learning
-at all. Second, a shaped reward that gives credit for position-wise overlap is easily satisfied by copying the prompt, so
-it should be paired with a check that penalises copying, or with a curriculum that starts from short sequences where
-the true skill has non-zero pass@k. The one format effect we did see is that one-token-per-base input makes outputs more
-length-faithful, which is consistent with Carbon-X's reported base-counting and coordinate errors. This was a vanilla
-model with a *simulated* 6-mer view, not Carbon-X itself.
+The 0.6B model could not test the hypothesis that segmentation caps what RL can reach, because it has no
+reverse-complement skill in *any* input view. Carbon-X shows what the question looks like once the skill exists. It
+reverse-complements well, but its failures concentrate where its tokenizer is awkward. Accuracy falls from ~80% to 44% as
+the padded leftover 6-mer grows, and exact base counting, which needs every letter separately, is at ~10%. Two
+lessons carry over to RL on DNA models. First, on-policy RL with verifiable rewards only amplifies existing behaviour:
+pass@8 = 0 gives no learning at all. Second, shaped rewards that credit position-wise overlap are easily satisfied by
+copying the prompt. The obvious next experiment is GRPO on Carbon-X itself, targeting the leftover-chunk and counting
+failures.
 
 ## Limitations
 
@@ -113,6 +132,7 @@ model with a *simulated* 6-mer view, not Carbon-X itself.
 - The partial-credit run was added after the exact-match run returned a null result (a post-hoc design change, approved and
   logged in `notes/progress.md`). Its pre-RL baseline is shared with the exact run.
 - The 6-mer view is simulated with spaces in a BPE model. The tokenizer still splits each 6-mer into ~2–3 tokens.
+- Carbon-X was evaluated in 4-bit NF4 quantization, which may lower its accuracy. Leftover-chunk groups are 16–24 prompts each.
 
 ## Next steps
 
@@ -120,7 +140,7 @@ model with a *simulated* 6-mer view, not Carbon-X itself.
    give exact-match GRPO a signal.
 2. **Anti-copy shaped reward:** partial credit minus a penalty for overlap with the input or its reverse.
 3. **Thinking mode / scratchpad:** let the model reverse, then complement, step by step.
-4. A larger model (Qwen3-4B/8B) or Carbon-X itself, where the base skill exists and the segmentation question becomes testable.
+4. GRPO on Carbon-X itself (needs more GPU memory than a free T4), aimed at the leftover-chunk and counting failures.
 
 ## Reproduce
 

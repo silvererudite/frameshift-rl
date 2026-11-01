@@ -700,7 +700,7 @@ for _f in ("raw", "perbase"):
     _p = sorted(glob.glob(str(OUT / "**" / "carbon" / f"eval_carbon_{_f}.jsonl"), recursive=True))
     if _p:
         CARBON[_f] = pd.DataFrame(jl(_p[0]))
-CLAB = {"raw": "Carbon-X · plain DNA (native 6-mer tokens)", "perbase": "Carbon-X · spaced letters"}
+CLAB = {"raw": "Carbon-X · plain DNA", "perbase": "Carbon-X · spaced letters (re-tokenized to 6-mers)"}
 
 
 def fig11():
@@ -801,6 +801,41 @@ def fig12():
     save(fig, "fig12_carbon_x_error_positions")
 
 
+# ----------------------------------------------------------------------------- Fig 13 (Carbon-X: the leftover 6-mer)
+def fig13():
+    if not CARBON:
+        return
+    d = pd.concat([CARBON[f].assign(run=f) for f in CARBON], ignore_index=True)
+    d = d[d.task == "revcomp"].copy()
+    d["rem"] = d.length % 6
+    d["lenerr"] = d.len_mismatch.fillna(True).astype(float)
+    d["key"] = d.id + "_" + d.run
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.8))
+    S["fig13"] = {}
+    for ax, col, lab in ((axes[0], "exact", "exact-match accuracy"), (axes[1], "lenerr", "wrong-length (or missing) answers")):
+        v = np.array([boot_ci(d[d.rem == t], col, by="key") for t in range(6)])
+        n = [d[d.rem == t].key.nunique() for t in range(6)]
+        ax.bar(range(6), v[:, 0], color=["#9aa4b2"] + ["#CC79A7"] * 5, width=0.62)
+        ax.errorbar(range(6), v[:, 0], yerr=[v[:, 0] - v[:, 1], v[:, 2] - v[:, 0]], fmt="none", color=INK, lw=1.2)
+        for t in range(6):
+            ax.text(t, v[t, 2] + 0.02, f"{v[t, 0]:.0%}", ha="center", fontsize=10, color=INK, fontweight="bold")
+        ax.set_xticks(range(6), [f"{t}\n(n={n[t]})" for t in range(6)])
+        ax.set_xlabel("letters left over in the final, incomplete 6-mer  (sequence length mod 6)")
+        ax.set_ylim(0, 1)
+        ax.set_yticks(np.linspace(0, 1, 6), [f"{x:.0%}" for x in np.linspace(0, 1, 6)])
+        ax.set_title(lab, loc="left", fontsize=12)
+        S["fig13"][col] = v[:, 0].tolist()
+    diff = (d.answer.str.len() - d.length).dropna()
+    bad = diff[diff != 0]
+    S["fig13"].update(n_len_errors=int(len(bad)), small_len_errors=float((bad.abs() <= 2).mean()),
+                      mult6_len_errors=float((bad % 6 == 0).mean()))
+    suptitle(fig, S.get("fig13_title", "Carbon-X stumbles on the leftover chunk: accuracy depends on sequence length mod 6"),
+             "Carbon-X pads the final partial 6-mer with N (e.g. AANNNN). Reverse complement starts from that chunk. "
+             "Both Carbon-X runs pooled (identical tokens), 95% bootstrap CIs over prompt × run.")
+    fig.tight_layout()
+    save(fig, "fig13_carbon_x_leftover_chunk")
+
+
 # ----------------------------------------------------------------------------- social card
 def social():
     import matplotlib.image as mpimg
@@ -840,6 +875,7 @@ if __name__ == "__main__":
     fig10()
     fig11()
     fig12()
+    fig13()
     fig5()
     social()
     json.dump({k: v for k, v in S.items() if k not in ("social_lines",)}, open(FIG / "summary.json", "w"),

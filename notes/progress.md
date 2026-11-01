@@ -29,3 +29,6 @@
   - fig5: probe grid GIF (121 KB) + final frame. fig6: before/after examples picked by rule (first id per bucket).
   - fig7: tokens per base vs post-RL partial credit. fig8: exact-match null (0/4,568). fig9: answer-type breakdown (hero).
   - social_card.png 1200×675.
+- 2026-11-01/02 Carbon-X eval (`dna-grpo-carbon`): 4-bit NF4 on one T4 each (10.1 GB), load ~113 s, generation ~25 min per run.
+  Carbon-X's tokenizer re-tokenizes spaced DNA into the same 6-mers (logged prompt tokens identical), so the two runs are replicates.
+  revcomp 68.5% / 66.7% exact; gc_count 10.6% / 8.5%. Accuracy vs length mod 6: 77, 76, 83, 70, 60, 44%.

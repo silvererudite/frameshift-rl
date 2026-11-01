@@ -81,8 +81,13 @@
  "tldr": [
   "<strong>Exact-match reward gives no learning signal.</strong> 0 of 4,568 reverse-complement training rollouts were correct in any format, so every GRPO group had zero variance and zero gradient.",
   "<strong>Partial-credit reward gets gamed.</strong> The policy learned to copy the input verbatim: 88% (raw), 98% (per-base), 74% (6-mer) of answers after RL, up from 8%, 17% and 5%. A copy always has the right length and scores ~25% by chance.",
-  "<strong>The format changed how faithfully the model copies, not whether it can reverse-complement.</strong> Errors sit at chance (~75% per base) at token edges and inside tokens alike."
+  "<strong>The format changed how faithfully the model copies, not whether it can reverse-complement.</strong> Errors sit at chance (~75% per base) at token edges and inside tokens alike.",
+  "<strong>A DNA-trained model has the skill, and its errors follow its tokenizer.</strong> Carbon-X reverse-complements 68.5% of the same prompts exactly, counts GC right only ~10%, and drops from ~80% to 44% accuracy as its padded leftover 6-mer chunk grows."
  ],
+ "fig10_title": "Copying takes over between steps 20 and 50 of partial-credit training; the exact-match run never moves",
+ "fig11_title": "A DNA-trained model has the skill: Carbon-X reverse-complements 68% exactly where Qwen3-0.6B gets 0%, yet counts GC right only ~10%",
+ "fig12_title": "Carbon-X errors are rare once the length is right; most of its failures are length errors",
+ "fig13_title": "Carbon-X stumbles on a long leftover chunk: 77\u201383% exact with 0\u20132 letters left over, 44% with 5",
  "fig1": {
   "id": "ev0048",
   "length": 40,
@@ -357,5 +362,111 @@
    "copy": 0.625,
    "lenok": 0.75
   }
+ },
+ "fig11": {
+  "Qwen3-0.6B \u00b7 plain DNA (BPE)": {
+   "exact": 0.0,
+   "copy": 0.07708333333333334,
+   "other": 0.11666666666666667,
+   "len": 0.79375,
+   "none": 0.0125
+  },
+  "Qwen3-0.6B \u00b7 spaced letters": {
+   "exact": 0.0,
+   "copy": 0.16666666666666666,
+   "other": 0.10416666666666667,
+   "len": 0.66875,
+   "none": 0.06041666666666667
+  },
+  "Carbon-X \u00b7 plain DNA": {
+   "exact": 0.6854166666666667,
+   "copy": 0.010416666666666666,
+   "other": 0.052083333333333336,
+   "len": 0.2375,
+   "none": 0.014583333333333334
+  },
+  "Carbon-X \u00b7 spaced letters (re-tokenized to 6-mers)": {
+   "exact": 0.6666666666666666,
+   "copy": 0.00625,
+   "other": 0.06875,
+   "len": 0.23958333333333334,
+   "none": 0.01875
+  },
+  "Qwen3-0.6B|revcomp": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "Carbon-X (6-mer)|revcomp": [
+   0.84375,
+   0.63125,
+   0.58125
+  ],
+  "Carbon-X (letters)|revcomp": [
+   0.85625,
+   0.58125,
+   0.5625
+  ],
+  "Qwen3-0.6B|gc_count": [
+   0.00625,
+   0.0375,
+   0.0
+  ],
+  "Carbon-X (6-mer)|gc_count": [
+   0.125,
+   0.1375,
+   0.05625
+  ],
+  "Carbon-X (letters)|gc_count": [
+   0.10625,
+   0.1,
+   0.05
+  ]
+ },
+ "fig12": {
+  "n_length_correct": 359,
+  "pos6": [
+   0.05248891981034838,
+   0.04609101216244073,
+   0.04809729952587095,
+   0.046587559266130694,
+   0.05168847025989883,
+   0.04569974998546427
+  ],
+  "along": [
+   0.0329976064499874,
+   0.04164021164021164,
+   0.04837301587301587,
+   0.041581632653061223,
+   0.04857142857142857,
+   0.04630952380952381,
+   0.05422335600907029,
+   0.05857142857142857,
+   0.05809523809523809,
+   0.05452569916855631
+  ],
+  "edge": 0.049289243817230446,
+  "interior": 0.04794426164309396
+ },
+ "fig13": {
+  "exact": [
+   0.7734375,
+   0.7604166666666666,
+   0.8263888888888888,
+   0.7013888888888888,
+   0.5978260869565217,
+   0.44047619047619047
+  ],
+  "lenerr": [
+   0.1171875,
+   0.171875,
+   0.13194444444444445,
+   0.2916666666666667,
+   0.31521739130434784,
+   0.4642857142857143
+  ],
+  "n_len_errors": 229,
+  "small_len_errors": 0.6157205240174672,
+  "mult6_len_errors": 0.1703056768558952
  }
 }

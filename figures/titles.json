@@ -18,7 +18,11 @@
  "tldr": [
   "<strong>Exact-match reward gives no learning signal.</strong> 0 of 4,568 reverse-complement training rollouts were correct in any format, so every GRPO group had zero variance and zero gradient.",
   "<strong>Partial-credit reward gets gamed.</strong> The policy learned to copy the input verbatim: 88% (raw), 98% (per-base), 74% (6-mer) of answers after RL, up from 8%, 17% and 5%. A copy always has the right length and scores ~25% by chance.",
-  "<strong>The format changed how faithfully the model copies, not whether it can reverse-complement.</strong> Errors sit at chance (~75% per base) at token edges and inside tokens alike."
+  "<strong>The format changed how faithfully the model copies, not whether it can reverse-complement.</strong> Errors sit at chance (~75% per base) at token edges and inside tokens alike.",
+  "<strong>A DNA-trained model has the skill, and its errors follow its tokenizer.</strong> Carbon-X reverse-complements 68.5% of the same prompts exactly, counts GC right only ~10%, and drops from ~80% to 44% accuracy as its padded leftover 6-mer chunk grows."
  ],
- "fig10_title": "Copying takes over between steps 20 and 50 of partial-credit training; the exact-match run never moves"
+ "fig10_title": "Copying takes over between steps 20 and 50 of partial-credit training; the exact-match run never moves",
+ "fig11_title": "A DNA-trained model has the skill: Carbon-X reverse-complements 68% exactly where Qwen3-0.6B gets 0%, yet counts GC right only ~10%",
+ "fig12_title": "Carbon-X errors are rare once the length is right; most of its failures are length errors",
+ "fig13_title": "Carbon-X stumbles on a long leftover chunk: 77–83% exact with 0–2 letters left over, 44% with 5"
 }

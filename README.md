@@ -65,26 +65,34 @@ or inside one. **You can't measure how chunking hurts a skill the model doesn't 
 
 ### Validation with Carbon-X
 
-*In progress: results will be added here.*
+The small model never had the skill, so the chunking question stayed open. The natural follow-up is to ask a model that
+**does** know DNA. [Carbon-X](https://huggingface.co/HuggingFaceBio/Carbon-X) is a 14.8B-parameter model built on
+Qwen3-14B (the same family as the small model, 25× bigger). It was trained on DNA and reads it in native 6-letter
+chunks. I gave it the exact same test questions with the exact same grading, and no training from me.
 
-The small model never had the skill, so the chunking question stayed open. The natural follow-up is to ask a model
-that **does** know DNA. [Carbon-X](https://huggingface.co/HuggingFaceBio/Carbon-X) is a 14.8B-parameter model built on
-Qwen3-14B (the same family as the small model, 25× bigger). It was trained on DNA, reads it in native 6-letter chunks, and
-its own model card admits it sometimes miscounts bases.
+**It has the skill the small model lacked.** Carbon-X gets the reverse complement exactly right **68% of the time**
+(84% on short sequences, 58% on long ones), where Qwen3-0.6B got 0%. When its answer has the right length, 96% of the
+letters are correct. So the explanation above holds up: a model that already partly knows the task gives RL something to
+amplify.
 
-I give Carbon-X the exact same test questions with the exact same grading, with no training, and ask two things:
+**But it can barely count.** Asked for the number of G and C letters, Carbon-X is right only **~10%** of the time (median
+error of 2), which matches its own model card's warning that it miscounts bases. Counting needs every individual letter, and
+in a 6-letter chunk the letters are hidden inside one token.
 
-- **Does it ever get reverse complement right?** If yes, RL would have something to amplify, which supports the
-  explanation above. If it also scores ~0%, then even a purpose-built DNA model can't do this basic operation through
-  6-letter chunks, which is the tokenizer question again.
-- **Where do its mistakes fall?** If errors pile up at the edges of its 6-letter chunks, that's direct evidence the
-  chunking is getting in the way.
+![Carbon-X vs the small model](figures/fig11_carbon_x_vs_qwen.png)
 
-**How it runs:** at normal precision Carbon-X needs ~30 GB of GPU memory, and a free Kaggle T4 has 16 GB. So it's loaded in
-**4-bit compressed form (~9 GB)**, which fits on one T4 (compression costs a little quality, noted as a caveat). Kaggle
-provides two T4s, so two copies run side by side: one reads plain DNA (Carbon-X's native 6-letter chunks), the other
-reads spaced letters (`A C G T …`). Training Carbon-X with RL is out of reach on free GPUs, so this is an evaluation-only
-check.
+**And its mistakes follow its chunking.** DNA lengths rarely divide evenly by 6, so Carbon-X's tokenizer packs the last
+few letters into a padded leftover chunk (for example `AANNNN`). Reverse complement starts from exactly that chunk. When
+0–2 letters are left over, Carbon-X is right 77–83% of the time. With 5 letters left over it drops to **44%**, and nearly
+half its answers come out the wrong length, usually off by just 1–2 letters. Inside full chunks, by contrast, letters are
+equally reliable at every position (~5% error), so the trouble is specifically the leftover chunk.
+
+![Accuracy depends on the leftover chunk](figures/fig13_carbon_x_leftover_chunk.png)
+
+*Caveats:* Carbon-X ran in 4-bit compressed form to fit a free Kaggle T4, which may cost some accuracy. Its tokenizer
+turns spaced letters back into the same 6-letter chunks, so the "spaced letters" run is effectively a repeat of the
+plain run (68.5% vs 66.7%), not a different view. The leftover-chunk groups are small (16–24 prompts each), so the
+trend is clear but the exact percentages are approximate.
 
 ## Conclusions
 
@@ -93,7 +101,10 @@ check.
 2. **Partial credit has to be designed carefully, or the model finds a shortcut.** Here, "points per correct letter"
    rewarded copying the input. A better reward would penalise copying, or training would start with very short sequences
    the model can sometimes get right and grow from there.
-3. **The tokenizer question needs a model with the skill to begin with.** See the Carbon-X check above.
+3. **Once a model has the skill, the chunking does show up.** Carbon-X reverse-complements well but fails most often
+   around its leftover chunk, and it can barely count letters it only sees bundled inside 6-letter tokens. The
+   natural next experiment is RL on a model like Carbon-X, where there is a skill to sharpen and a tokenizer
+   weakness to work around.
 
 ## Methods
 
@@ -126,6 +137,7 @@ Interactive results page: [`site/index.html`](site/index.html).
 | [Fig 10](figures/fig10_copying_takes_over.png) | How fast copying took over during training |
 | [Fig 11](figures/fig11_carbon_x_vs_qwen.png) | Small general model vs Carbon-X on the same questions |
 | [Fig 12](figures/fig12_carbon_x_error_positions.png) | Where Carbon-X's mistakes fall inside its 6-letter tokens |
+| [Fig 13](figures/fig13_carbon_x_leftover_chunk.png) | Carbon-X accuracy vs the size of the leftover chunk |
 
 ## Repository structure
 

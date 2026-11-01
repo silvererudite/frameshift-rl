@@ -1,0 +1,10 @@
+kernels/
+outputs/
+.kaggle/
+*.token
+access_token
+kaggle.json
+__pycache__/
+.venv/
+.pytest_cache/
+.DS_Store

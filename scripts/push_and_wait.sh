@@ -3,6 +3,7 @@
 set -uo pipefail
 NAME="$1"; USER_ID="shamimahossain"; KID="$USER_ID/dna-grpo-$NAME"
 cd "$(dirname "$0")/.."
+[ -f .venv/bin/activate ] && source .venv/bin/activate
 kaggle kernels push -p "kernels/$NAME"
 while true; do
   sleep 60

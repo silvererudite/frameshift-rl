@@ -644,6 +644,163 @@ def fig9():
     save(fig, "fig9_what_the_answers_are")
 
 
+# ----------------------------------------------------------------------------- Fig 10 (copy takes over)
+def probe_series(run):
+    out = {}
+    for f in FORMATS:
+        for p in find(f"probe_{f}_step*.jsonl", run=run):
+            step = int(pathlib.Path(p).stem.split("step")[1])
+            rows = jl(p)
+            out.setdefault(f, {})[step] = dict(
+                copy=np.mean([r.get("answer") == r["seq"] for r in rows]),
+                lenok=np.mean([r.get("len_mismatch") is False for r in rows]))
+    return out
+
+
+def fig10():
+    dense, exact = probe_series("dense"), probe_series("exact")
+    if not dense:
+        return
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.8))
+    for ax, key, lab in ((axes[0], "copy", "answers that are a verbatim copy of the input"),
+                         (axes[1], "lenok", "answers with the right length")):
+        ends = []
+        for f in FORMATS:
+            for src, ls, lw in ((exact, ":", 1.6), (dense, "-", 2.6)):
+                if f not in src:
+                    continue
+                st = sorted(src[f])
+                ax.plot(st, [src[f][k][key] for k in st], ls=ls, lw=lw, color=COL[f], marker="o" if ls == "-" else None, ms=5)
+            st = sorted(dense[f])
+            ends.append((dense[f][st[-1]][key], f, st[-1]))
+        ends.sort()
+        ly = -1
+        for v, f, x in ends:
+            ly = max(v, ly + 0.06)
+            ax.text(x + 3, ly, LABEL[f], color=INK, fontweight="bold", va="center", fontsize=10)
+        ax.set_xlim(-2, 122)
+        ax.set_ylim(-0.03, 1.05)
+        ax.set_yticks(np.linspace(0, 1, 6), [f"{v:.0%}" for v in np.linspace(0, 1, 6)])
+        ax.set_xlabel("GRPO step")
+        ax.set_title(lab, loc="left", fontsize=12)
+    axes[0].plot([], [], "k-", marker="o", label="partial-credit reward")
+    axes[0].plot([], [], "k:", label="exact-match reward")
+    axes[0].legend(loc="upper left")
+    S["fig10"] = {f: {k: dense[f][max(dense[f])][k] for k in ("copy", "lenok")} for f in dense}
+    suptitle(fig, S.get("fig10_title", "Copying takes over within the first ~30 steps of partial-credit training"),
+             "24 fixed reverse-complement probe prompts, greedy decoding, checked every 10 GRPO steps "
+             "(small n: each point is out of 24).")
+    fig.tight_layout()
+    save(fig, "fig10_copying_takes_over")
+
+
+# ----------------------------------------------------------------------------- Figs 11-12 (Carbon-X)
+CARBON = {}
+for _f in ("raw", "perbase"):
+    _p = sorted(glob.glob(str(OUT / "**" / "carbon" / f"eval_carbon_{_f}.jsonl"), recursive=True))
+    if _p:
+        CARBON[_f] = pd.DataFrame(jl(_p[0]))
+CLAB = {"raw": "Carbon-X · plain DNA (native 6-mer tokens)", "perbase": "Carbon-X · spaced letters"}
+
+
+def fig11():
+    if not CARBON:
+        return
+    fig = plt.figure(figsize=(14, 6.4))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1.25, 1], hspace=0.55, wspace=0.3)
+    ax = fig.add_subplot(gs[:, 0])
+    ax.grid(False)
+    rows = [("Qwen3-0.6B · plain DNA (BPE)", EV[("pre", "raw")]), ("Qwen3-0.6B · spaced letters", EV[("pre", "perbase")])]
+    rows += [(CLAB[f], CARBON[f]) for f in ("raw", "perbase") if f in CARBON]
+    S["fig11"] = {}
+    for y, (lab, d) in enumerate(rows):
+        k = answer_kinds(d)
+        S["fig11"][lab] = {kk: float(v) for kk, v in k.items()}
+        left = 0
+        for key, _, c in CATS:
+            ax.barh(y, k[key], left=left, color=c, edgecolor="#9aa4b2" if key == "none" else "white",
+                    hatch="///" if key == "none" else None, height=0.7)
+            if k[key] >= 0.06:
+                ax.text(left + k[key] / 2, y, f"{k[key]:.0%}", ha="center", va="center", fontsize=10, fontweight="bold",
+                        color="white" if key in ("exact", "copy") else INK)
+            left += k[key]
+    ax.set_yticks(range(len(rows)), [r[0] for r in rows], fontsize=10)
+    ax.set_ylim(len(rows) - 0.5, -0.5)
+    ax.set_xlim(0, 1)
+    ax.set_xticks(np.linspace(0, 1, 6), [f"{v:.0%}" for v in np.linspace(0, 1, 6)])
+    ax.set_xlabel("share of reverse-complement answers (before any of our RL)")
+    for key, lab, c in CATS:
+        ax.barh([0], [0], color=c, edgecolor="#9aa4b2", hatch="///" if key == "none" else None, label=lab)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.45, -0.13), ncol=3, fontsize=9)
+    ax.set_title("A · What each base model answers", loc="left", fontsize=12)
+    x = np.arange(3)
+    for i, task in enumerate(("revcomp", "gc_count")):
+        ax = fig.add_subplot(gs[i, 1])
+        for lab, d, c, ls in (("Qwen3-0.6B", EV[("pre", "raw")], INK2, "--"),
+                              ("Carbon-X (6-mer)", CARBON.get("raw"), "#CC79A7", "-"),
+                              ("Carbon-X (letters)", CARBON.get("perbase"), "#CC79A7", ":")):
+            if d is None:
+                continue
+            v = np.array([boot_ci(d[(d.task == task) & (d.bucket == b)]) for b in BUCKETS])
+            ax.errorbar(x, v[:, 0], yerr=[v[:, 0] - v[:, 1], v[:, 2] - v[:, 0]], color=c, ls=ls, marker="o", ms=6,
+                        lw=2, label=lab, elinewidth=1)
+            S["fig11"][f"{lab}|{task}"] = v[:, 0].tolist()
+        ax.set_xticks(x, [f"{b} bp" for b in BUCKETS])
+        ax.set_ylim(-0.03, 1.03)
+        ax.set_yticks([0, 0.5, 1], ["0%", "50%", "100%"])
+        ax.set_title(("B · " if i == 0 else "C · ") + {"revcomp": "Reverse complement", "gc_count": "GC count"}[task]
+                     + ": exact match", loc="left", fontsize=12)
+        if i == 0:
+            ax.legend(fontsize=9, loc="upper right")
+    suptitle(fig, S.get("fig11_title", "Does a DNA-trained model have the skill our small model lacked?"),
+             f"Same 240 eval prompts × 4 samples, T=0.7, top-p 0.8. Carbon-X (Qwen3-14B DNA fine-tune) in 4-bit NF4 on a T4. "
+             "95% bootstrap CIs.", y=1.04)
+    save(fig, "fig11_carbon_x_vs_qwen")
+
+
+def fig12():
+    d = CARBON.get("raw")
+    if d is None:
+        return
+    d = d[(d.task == "revcomp") & d.per_position_correct.notna()]
+    if len(d) < 10:
+        S["fig12"] = dict(n_length_correct=int(len(d)))
+        return
+    rows = []
+    for r in d.itertuples():
+        L = r.length
+        for i, ok in enumerate(r.per_position_correct):
+            j = L - 1 - i
+            rows.append((r.id, j % 6, i / max(1, L - 1), not ok, (j % 6) in (0, 5)))
+    e = pd.DataFrame(rows, columns=["id", "pos6", "relpos", "err", "edge"])
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.6))
+    v = np.array([boot_ci(e[e.pos6 == p], "err") for p in range(6)])
+    axes[0].errorbar(range(6), v[:, 0], yerr=[v[:, 0] - v[:, 1], v[:, 2] - v[:, 0]], color="#CC79A7", marker="o", ms=8, lw=2.4)
+    axes[0].set_xticks(range(6), ["0\n(edge)", "1", "2", "3", "4", "5\n(edge)"])
+    axes[0].set_xlabel("position of the input base inside its 6-mer token")
+    axes[0].set_ylabel("per-base error rate")
+    axes[0].set_title("A · Error by position inside the 6-mer token", loc="left", fontsize=12)
+    bins = np.linspace(0, 1, 11)
+    e["bin"] = np.clip(np.digitize(e.relpos, bins) - 1, 0, 9)
+    w = np.array([boot_ci(e[e.bin == b], "err") for b in range(10)])
+    xc = (bins[:-1] + bins[1:]) / 2
+    axes[1].errorbar(xc, w[:, 0], yerr=[w[:, 0] - w[:, 1], w[:, 2] - w[:, 0]], color="#CC79A7", marker="o", ms=6, lw=2)
+    axes[1].set_xlabel("position in the answer (start → end)")
+    axes[1].set_title("B · Error along the answer", loc="left", fontsize=12)
+    for ax in axes:
+        ax.axhline(0.75, color=INK2, ls="--", lw=1)
+        ax.set_ylim(0, 1)
+        ax.set_yticks(np.linspace(0, 1, 6), [f"{t:.0%}" for t in np.linspace(0, 1, 6)])
+    axes[1].text(1.0, 0.765, "chance", ha="right", fontsize=9, color=INK2)
+    S["fig12"] = dict(n_length_correct=int(d.shape[0]), pos6=v[:, 0].tolist(), along=w[:, 0].tolist(),
+                      edge=boot_ci(e[e.edge], "err")[0], interior=boot_ci(e[~e.edge], "err")[0])
+    suptitle(fig, S.get("fig12_title", "Carbon-X reverse-complement errors vs its own 6-mer token boundaries"),
+             f"Length-correct Carbon-X answers only (n = {d.shape[0]} samples). Output base i traced to input base L−1−i; "
+             "6-mers are counted from the start of the sequence. 95% bootstrap CIs.")
+    fig.tight_layout()
+    save(fig, "fig12_carbon_x_error_positions")
+
+
 # ----------------------------------------------------------------------------- social card
 def social():
     import matplotlib.image as mpimg
@@ -680,6 +837,9 @@ if __name__ == "__main__":
         fig7()
     fig8()
     fig9()
+    fig10()
+    fig11()
+    fig12()
     fig5()
     social()
     json.dump({k: v for k, v in S.items() if k not in ("social_lines",)}, open(FIG / "summary.json", "w"),

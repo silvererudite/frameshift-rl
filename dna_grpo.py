@@ -126,7 +126,8 @@ def parse_answer(completion: str):
     m = _ANS.findall(completion or "")
     if not m:
         return None
-    return re.sub(r"\s+", "", m[-1]).upper()
+    # Carbon-X may wrap DNA in its own <dna>...</dna> markers
+    return re.sub(r"\s+|</?dna>|<oov>", "", m[-1], flags=re.I).upper()
 
 
 def score(completion: str, target: str, task: str) -> dict:
@@ -382,10 +383,74 @@ def smoke():
     log(f"3 GRPO steps took {time.time() - t0:.0f}s (incl. model load + probes)")
 
 
+CARBON_ID = "HuggingFaceBio/Carbon-X"
+
+
+def eval_carbon(fmt):
+    """Eval-only: Carbon-X (Qwen3-14B DNA fine-tune, native 6-mer DNA tokenizer) in 4-bit on one T4."""
+    import torch
+    import transformers
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+    out_dir = os.path.join(RESULTS, "carbon")
+    os.makedirs(out_dir, exist_ok=True)
+    tok = AutoTokenizer.from_pretrained(CARBON_ID, trust_remote_code=True)
+    tok.padding_side = "left"
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    _, eval_items, _ = make_splits()
+    ev = render(eval_items, fmt, tok)
+    toks = tok.convert_ids_to_tokens(tok(ev[0]["prompt"], add_special_tokens=False)["input_ids"])
+    log(f"[carbon/{fmt}] example prompt tokens ({len(toks)}):", toks[:80])
+    q = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.float16,
+                           bnb_4bit_use_double_quant=True)
+    t0 = time.time()
+    model = AutoModelForCausalLM.from_pretrained(CARBON_ID, quantization_config=q, device_map={"": 0},
+                                                 dtype=torch.float16, low_cpu_mem_usage=True)
+    log(f"[carbon/{fmt}] loaded in {time.time() - t0:.0f}s; transformers {transformers.__version__};"
+        f" mem {torch.cuda.memory_allocated() / 1e9:.1f} GB")
+    with open(f"{out_dir}/prompt_tokens_{fmt}.json", "w") as f:
+        json.dump(dict(prompt=ev[0]["prompt"], tokens=toks), f)
+    rows = run_eval_batched(model, tok, ev, f"{out_dir}/eval_carbon_{fmt}.jsonl", batch_prompts=8)
+    log(f"[carbon/{fmt}] done")
+    return rows
+
+
+def run_eval_batched(model, tok, records, path, batch_prompts=8, n=4):
+    t0 = time.time()
+    comps = generate(model, tok, [r["prompt"] for r in records], n=n, batch_prompts=batch_prompts)
+    with open(path, "w") as f:
+        for r, cs in zip(records, comps):
+            for si, c in enumerate(cs):
+                row = {k: v for k, v in r.items() if k != "prompt"}
+                row.update(sample=si, completion=c, **score(c, r["target"], r["task"]))
+                f.write(json.dumps(row) + "\n")
+    log(f"eval -> {os.path.basename(path)} ({time.time() - t0:.0f}s)")
+
+
 def main(stage="smoke"):
     log("stage", stage, "python", sys.version.split()[0])
     if stage == "smoke":
         smoke()
+    elif stage.startswith("train_carbon_"):
+        eval_carbon(stage[len("train_carbon_"):])
+    elif stage == "carbon":
+        import subprocess
+        from huggingface_hub import snapshot_download
+        os.makedirs(RESULTS, exist_ok=True)
+        t0 = time.time()
+        snapshot_download(CARBON_ID)  # download once; both GPU workers then load from the local cache
+        log(f"downloaded {CARBON_ID} in {time.time() - t0:.0f}s")
+        procs = []
+        for i, fmt in enumerate(os.environ["FORMATS"].split(",")):
+            env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(i))
+            logf = open(f"{RESULTS}/stdout_carbon_{fmt}.log", "w")
+            procs.append((fmt, subprocess.Popen([sys.executable, __file__, f"train_carbon_{fmt}"], env=env,
+                                                stdout=logf, stderr=subprocess.STDOUT)))
+            time.sleep(150)  # stagger the 4-bit quantisation so both workers don't peak in CPU RAM together
+        for fmt, p in procs:
+            p.wait()
+            log(fmt, "exit", p.returncode)
+            print(open(f"{RESULTS}/stdout_carbon_{fmt}.log").read()[-3000:])
     elif stage.startswith("train_"):
         fmt = stage[len("train_"):]
         train_format(fmt, max_steps=int(os.environ.get("MAX_STEPS", 100)),

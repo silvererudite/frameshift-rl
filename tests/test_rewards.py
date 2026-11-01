@@ -68,3 +68,7 @@ def test_dense_reward():
     assert dense_reward("no tag", "CGTT", "revcomp") == 0.0
     assert dense_reward("<answer>12</answer>", "12", "gc_count") == 1.0
     assert dense_reward("<answer>14</answer>", "12", "gc_count") == 1 / 3
+
+
+def test_carbon_dna_markers():
+    assert reward("<answer><dna>CGTT</dna></answer>", "CGTT", "revcomp") == 1.0

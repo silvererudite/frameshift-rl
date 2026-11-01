@@ -10,7 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 USER = "shamimahossain"
 
 HEADER = '''import subprocess, sys
-subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "trl", "peft", "datasets", "accelerate"], check=False)
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "trl", "peft", "datasets", "accelerate", "bitsandbytes"], check=False)
 # Kaggle ships torchao 0.10, which recent PEFT rejects at LoRA injection time
 subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "-q", "torchao"], check=False)
 '''

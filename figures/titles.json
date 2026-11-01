@@ -19,5 +19,6 @@
   "<strong>Exact-match reward gives no learning signal.</strong> 0 of 4,568 reverse-complement training rollouts were correct in any format, so every GRPO group had zero variance and zero gradient.",
   "<strong>Partial-credit reward gets gamed.</strong> The policy learned to copy the input verbatim: 88% (raw), 98% (per-base), 74% (6-mer) of answers after RL, up from 8%, 17% and 5%. A copy always has the right length and scores ~25% by chance.",
   "<strong>The format changed how faithfully the model copies, not whether it can reverse-complement.</strong> Errors sit at chance (~75% per base) at token edges and inside tokens alike."
- ]
+ ],
+ "fig10_title": "Copying takes over between steps 20 and 50 of partial-credit training; the exact-match run never moves"
 }

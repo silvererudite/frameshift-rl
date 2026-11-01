@@ -11,6 +11,8 @@ USER = "shamimahossain"
 
 HEADER = '''import subprocess, sys
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "trl", "peft", "datasets", "accelerate"], check=False)
+# Kaggle ships torchao 0.10, which recent PEFT rejects at LoRA injection time
+subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "-q", "torchao"], check=False)
 '''
 
 ap = argparse.ArgumentParser()
@@ -19,15 +21,18 @@ ap.add_argument("--formats", default="raw,perbase,kmer6")
 ap.add_argument("--name", default=None)
 ap.add_argument("--max-steps", default="100")
 ap.add_argument("--budget-min", default="40")
+ap.add_argument("--env", action="append", default=[])
 a = ap.parse_args()
 
 name = a.name or a.stage
+a.extra_env = "".join(f'    os.environ["{e.split("=")[0]}"] = "{e.split("=",1)[1]}"\n' for e in a.env)
 out = ROOT / "kernels" / name
 out.mkdir(parents=True, exist_ok=True)
 footer = f'''
 
 if not (len(sys.argv) > 1 and sys.argv[1].startswith("train_")):
     os.environ.setdefault("FORMATS", "{a.formats}")
+{a.extra_env}
     os.environ.setdefault("MAX_STEPS", "{a.max_steps}")
     os.environ.setdefault("TIME_BUDGET_MIN", "{a.budget_min}")
     main(stage="{a.stage}")

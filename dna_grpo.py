@@ -233,6 +233,7 @@ def grpo_kwargs(GRPOConfig, out_dir, max_steps):
         max_completion_length=192, temperature=1.0, beta=0.0, logging_steps=1,
         save_strategy="no", report_to="none", seed=SEED, bf16=False, fp16=False,
         remove_unused_columns=False, log_completions=False, top_p=1.0,
+        gradient_checkpointing=False,
     )
     params = set(inspect.signature(GRPOConfig).parameters)
     dropped = [k for k in want if k not in params]
@@ -287,12 +288,27 @@ def train_format(fmt, max_steps=100, time_budget_min=40.0, do_eval=True, n_eval=
                 control.should_training_stop = True
             return control
 
+    # per-task reward log: TRL only logs the pooled reward; one reward call == one generation batch
+    calls = {"n": 0}
+    rlog = open(f"{RESULTS}/rewards_{fmt}.jsonl", "w")
+
+    def logged_reward(prompts=None, completions=None, target=None, task=None, **kw):
+        rs = exact_match_reward(prompts, completions, target=target, task=task)
+        texts = [_completion_text(c) for c in completions]
+        rlog.write(json.dumps(dict(call=calls["n"], task=list(task), reward=rs,
+                                   clen=[len(t) for t in texts], parse_fail=[parse_answer(t) is None for t in texts],
+                                   prompt_idx=[hash(p) % 10**8 for p in prompts])) + "\n")
+        rlog.flush()
+        calls["n"] += 1
+        return rs
+    logged_reward.__name__ = "exact_match"
+
     train = render(train_items, fmt, tok)
     ds = Dataset.from_list([{"prompt": r["prompt"], "target": r["target"], "task": r["task"]} for r in train])
     cfg = GRPOConfig(**grpo_kwargs(GRPOConfig, f"/tmp/grpo_{fmt}", max_steps))
     peft_cfg = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.0, task_type="CAUSAL_LM",
                           target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"])
-    trainer = GRPOTrainer(model=model, reward_funcs=exact_match_reward, args=cfg, train_dataset=ds,
+    trainer = GRPOTrainer(model=model, reward_funcs=logged_reward, args=cfg, train_dataset=ds,
                           processing_class=tok, peft_config=peft_cfg, callbacks=[ProbeAndBudget()])
     trainer.train()
     wall = time.time() - t_start
@@ -320,6 +336,11 @@ def smoke():
     from trl import GRPOConfig
     with open(f"{RESULTS}/grpo_config_signature.txt", "w") as f:
         f.write(str(inspect.signature(GRPOConfig)))
+    if os.environ.get("SMOKE_TRAIN_ONLY"):
+        t0 = time.time()
+        train_format("perbase", max_steps=3, do_eval=False)
+        log(f"3 GRPO steps took {time.time() - t0:.0f}s (incl. model load + probes)")
+        return
     model, tok = load_model()
     _, eval_items, _ = make_splits()
     sel = [eval_items[0], eval_items[45], eval_items[130], eval_items[200]]

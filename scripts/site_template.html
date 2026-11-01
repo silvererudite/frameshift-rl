@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frameshift RL</title>
+<meta name="description" content="Does RL fix what the tokenizer breaks? GRPO on DNA tasks across three input segmentations.">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+:root{--bg:#fbfbfa;--card:#ffffff;--ink:#1f2328;--ink2:#59636e;--line:#e6e8eb;--bad:#b42318;--badbg:#fbe3e0;--code:#f3f4f6;
+ --raw:#E69F00;--perbase:#0072B2;--kmer6:#009E73}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#171a20;--ink:#e6e8eb;--ink2:#9aa4b2;--line:#2a2f37;--bad:#ff8a80;--badbg:#3a1d1b;--code:#1f232a;--perbase:#56B4E9}}
+:root[data-theme="dark"]{--bg:#0f1115;--card:#171a20;--ink:#e6e8eb;--ink2:#9aa4b2;--line:#2a2f37;--bad:#ff8a80;--badbg:#3a1d1b;--code:#1f232a;--perbase:#56B4E9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:920px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.15;margin:0 0 8px;letter-spacing:-.02em}
+h2{font-size:22px;margin:56px 0 8px;letter-spacing:-.01em}
+.lede{color:var(--ink2);font-size:18px;margin:0 0 24px}
+.sub{color:var(--ink2);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:16px 0}
+.tldr li{margin:6px 0}
+img.fig{width:100%;height:auto;border-radius:6px;background:#fff}
+.plot{width:100%;height:380px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.ctl label{font-size:14px;color:var(--ink2)}
+select,button{font:inherit;font-size:14px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button[aria-pressed="true"]{border-color:currentColor;font-weight:600}
+.seqtab{overflow-x:auto;font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}
+.seqtab table{border-collapse:collapse}
+.seqtab td{padding:2px 8px;white-space:nowrap;vertical-align:top}
+.seqtab td:first-child{font-family:system-ui,sans-serif;color:var(--ink2);font-size:13px}
+.b{background:var(--badbg);color:var(--bad);font-weight:700}
+.pill{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.stat .n{font-size:30px;font-weight:700}
+.stat .l{color:var(--ink2);font-size:14px}
+a{color:var(--perbase)}
+footer{margin-top:64px;color:var(--ink2);font-size:14px;border-top:1px solid var(--line);padding-top:16px}
+.toggle{position:fixed;top:12px;right:12px}
+</style>
+</head>
+<body>
+<button class="toggle" id="theme" aria-label="Toggle dark mode">◐</button>
+<main>
+<p class="sub">Research note · DNA × RL · Qwen3-0.6B</p>
+<h1>Does RL fix what the tokenizer breaks?</h1>
+<p class="lede">DNA models like Carbon-X read sequences as multi-base tokens, yet tasks like reverse complement work base by base.
+I trained the same small language model with GRPO on the same DNA tasks, changing only how the sequence is cut into tokens, to see whether RL can learn around the segmentation.</p>
+<div class="card tldr"><strong>TL;DR</strong><ul>__TLDR__</ul></div>
+
+<h2>How the model sees DNA</h2>
+<p>The same 40-bp sequence under three input formats. Each coloured block is one input token. To write the reverse complement, output base <em>i</em> needs input base <em>L−1−i</em>, which usually sits inside a multi-base token.</p>
+<img class="fig" alt="One DNA sequence tokenized three ways: raw BPE (about 2 bases per token), per-base (1 base per token), and 6-mer groups (also split by BPE), with arrows to the reverse complement" src="data:image/png;base64,__FIG1__">
+
+<h2>Learning curves</h2>
+<p class="sub">Training reward (exact match) per GRPO step, as a 10-step rolling mean. Faint lines show the raw per-step value.</p>
+<div class="ctl" id="taskBtns"></div>
+<div class="ctl" id="fmtBtns"></div>
+<div id="curves" class="plot" role="img" aria-label="Training reward curves by format"></div>
+
+<h2>The length cliff, before vs after RL</h2>
+<p class="sub">Exact-match accuracy by sequence length. Dashed = before RL, solid = after RL. Bars are 95% bootstrap CIs over prompts. __SUB__</p>
+<div class="ctl" id="taskBtns2"></div>
+<div id="cliff" class="plot" role="img" aria-label="Accuracy by length bucket, before and after RL"></div>
+
+<h2>Where the errors happen</h2>
+<p>For reverse-complement answers with the right length, each wrong output base is traced back to the input base it should copy. The question is whether that input base sat at the edge of a token or inside one.</p>
+<div id="err" class="plot" role="img" aria-label="Per-base error rate at token edges vs inside tokens"></div>
+
+<h2>Example browser</h2>
+<p class="sub">Pick any eval prompt to see the first of 4 sampled answers from each model. Red = base differs from the target.</p>
+<div class="ctl"><label for="exSel">Prompt</label><select id="exSel"></select></div>
+<div class="card seqtab" id="exOut"></div>
+
+<h2>Setup &amp; limitations</h2>
+<div class="card">
+<p><strong>Model:</strong> Qwen3-0.6B (fp32) + LoRA r=16 on all linear projections, non-thinking chat template.
+<strong>RL:</strong> GRPO (TRL), 8 generations per prompt, 4 prompts per step, β=0, lr 2e-5, exact-match reward (1/0), no partial credit.
+<strong>Tasks:</strong> reverse complement and GC count on random 12–90 bp sequences (procedural, in the style of FineDNA's <code>rl_mix</code> basic-operation tasks).
+<strong>Eval:</strong> 240 held-out prompts (2 tasks × 3 length buckets × 40), 4 samples each (T=0.7, top-p 0.8), same sequences in every format.
+<strong>Compute:</strong> Kaggle, 2× T4.</p>
+<p><strong>Limitations:</strong> single seed; a short RL run with a wall-clock cap; a small vanilla model with a <em>simulated</em> 6-mer view, not Carbon-X itself; LoRA rather than full fine-tuning; two synthetic tasks.</p>
+</div>
+<footer>Shamima Hossain · Code, data and figures: <a href="https://github.com/silvererudite/frameshift-rl">github.com/silvererudite/frameshift-rl</a></footer>
+</main>
+<script>
+const D = __DATA__;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const colorOf = f => css('--' + f) || D.color[f];
+function layout(extra){return Object.assign({paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+  font:{color:css('--ink'),family:'system-ui, sans-serif',size:13},margin:{l:56,r:16,t:16,b:48},
+  xaxis:{gridcolor:css('--line'),zeroline:false},yaxis:{gridcolor:css('--line'),zeroline:false},
+  legend:{orientation:'h',y:-0.2},hovermode:'x unified'},extra||{})}
+const cfg={displayModeBar:false,responsive:true};
+const TASKS={revcomp:'Reverse complement',gc_count:'GC count'};
+let task='revcomp', task2='revcomp', shown=new Set(D.formats);
+function btns(el,items,isOn,onClick){el.innerHTML='';items.forEach(([k,lab,col])=>{const b=document.createElement('button');
+  b.innerHTML=(col?`<span class="pill" style="background:${col}"></span>`:'')+lab;b.setAttribute('aria-pressed',isOn(k));
+  b.onclick=()=>{onClick(k);render()};el.appendChild(b)})}
+function curves(){const tr=[];D.formats.forEach(f=>{const c=D.curves[f];if(!c||!shown.has(f))return;const t=c[task];
+  tr.push({x:t.step,y:t.raw,mode:'lines',line:{color:colorOf(f),width:1},opacity:.25,hoverinfo:'skip',showlegend:false});
+  tr.push({x:t.step,y:t.smooth,mode:'lines',name:D.label[f],line:{color:colorOf(f),width:3},hovertemplate:'%{y:.0%}'})});
+  Plotly.react('curves',tr,layout({xaxis:{title:'GRPO step',gridcolor:css('--line')},yaxis:{title:'reward',range:[-.02,1.02],tickformat:'.0%',gridcolor:css('--line')}}),cfg)}
+function cliff(){const tr=[];D.formats.forEach(f=>['pre','post'].forEach(ph=>{const a=D.acc[`${task2}|${f}|${ph}`];if(!a||a[0][0]==null)return;
+  tr.push({x:D.buckets.map(b=>b+' bp'),y:a.map(v=>v[0]),error_y:{type:'data',symmetric:false,array:a.map(v=>v[2]-v[0]),arrayminus:a.map(v=>v[0]-v[1]),color:colorOf(f),thickness:1.2,width:0},
+   mode:'lines+markers',name:`${D.label[f]} · ${ph==='pre'?'before':'after'} RL`,line:{color:colorOf(f),width:ph==='pre'?2:3,dash:ph==='pre'?'dash':'solid'},
+   marker:{size:9,color:ph==='pre'?css('--card'):colorOf(f),line:{color:colorOf(f),width:2}},hovertemplate:'%{y:.0%}'})}));
+  Plotly.react('cliff',tr,layout({yaxis:{title:'exact match',range:[-.03,1.03],tickformat:'.0%',gridcolor:css('--line')}}),cfg)}
+function err(){const tr=[];['pre','post'].forEach(ph=>['boundary','interior'].forEach(loc=>{const xs=[],ys=[];
+  D.formats.forEach(f=>{const v=D.fig4[`${f}_${loc}_${ph}`];if(v){xs.push(D.label[f]);ys.push(v.err)}});
+  tr.push({type:'bar',x:xs,y:ys,name:`${loc==='boundary'?'token edge':'inside token'} · ${ph==='pre'?'before':'after'} RL`,
+   marker:{color:ph==='pre'?'rgba(0,0,0,0)':(loc==='boundary'?css('--ink2'):css('--line')),line:{color:css('--ink2'),width:1.5},pattern:{shape:loc==='interior'?'/':''}},hovertemplate:'%{y:.1%}'})}));
+  Plotly.react('err',tr,layout({barmode:'group',yaxis:{title:'per-base error rate',tickformat:'.0%',gridcolor:css('--line')},hovermode:'closest'}),cfg)}
+const sel=document.getElementById('exSel');
+D.examples.forEach((e,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${e.id} · ${TASKS[e.task]} · ${e.length} bp`;sel.appendChild(o)});
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function hl(s,t,task){if(s==null)return '<span class="b">∅ no &lt;answer&gt; tag</span>';
+  if(task!=='revcomp')return s===t?esc(s):`<span class="b">${esc(s)}</span>`;
+  return [...s].map((c,i)=>c===t[i]?c:`<span class="b">${esc(c)}</span>`).join('')}
+function example(){const e=D.examples[+sel.value||0];let h=`<table><tr><td>input</td><td>${e.seq}</td></tr><tr><td><strong>target</strong></td><td><strong>${e.target}</strong></td></tr>`;
+  D.formats.forEach(f=>['pre','post'].forEach(ph=>{const k=`${f}|${ph}`;if(!(k in e.out))return;
+   h+=`<tr><td><span class="pill" style="background:${colorOf(f)}"></span>${D.label[f]} · ${ph==='pre'?'before':'after'}</td><td>${hl(e.out[k],e.target,e.task)}</td></tr>`}));
+  document.getElementById('exOut').innerHTML=h+'</table>'}
+sel.onchange=example;
+function render(){btns(document.getElementById('taskBtns'),Object.entries(TASKS),k=>k===task,k=>task=k);
+  btns(document.getElementById('fmtBtns'),D.formats.map(f=>[f,D.label[f],colorOf(f)]),k=>shown.has(k),k=>shown.has(k)?shown.delete(k):shown.add(k));
+  btns(document.getElementById('taskBtns2'),Object.entries(TASKS),k=>k===task2,k=>task2=k);
+  curves();cliff();err();example()}
+document.getElementById('theme').onclick=()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme=dark?'light':'dark';try{localStorage.setItem('theme',r.dataset.theme)}catch(e){};render()};
+try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
+render();
+</script>
+</body>
+</html>

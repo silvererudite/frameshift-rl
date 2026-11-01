@@ -58,3 +58,13 @@ def test_splits_balanced_and_shared():
 def test_trl_reward_fn():
     assert exact_match_reward(prompts=["p", "p"], completions=["<answer>CGTT</answer>", "x"],
                               target=["CGTT", "CGTT"], task=["revcomp", "revcomp"]) == [1.0, 0.0]
+
+
+def test_dense_reward():
+    from dna_grpo import dense_reward
+    assert dense_reward("<answer>CGTT</answer>", "CGTT", "revcomp") == 1.0
+    assert dense_reward("<answer>CGTA</answer>", "CGTT", "revcomp") == 0.75
+    assert dense_reward("<answer>CGTTAA</answer>", "CGTT", "revcomp") == 4 / 6
+    assert dense_reward("no tag", "CGTT", "revcomp") == 0.0
+    assert dense_reward("<answer>12</answer>", "12", "gc_count") == 1.0
+    assert dense_reward("<answer>14</answer>", "12", "gc_count") == 1 / 3

@@ -40,8 +40,15 @@ plt.rcParams.update({
 })
 
 
-def find(pattern):
-    return sorted(glob.glob(str(OUT / "**" / pattern), recursive=True))
+RUN = os.environ.get("RUN", "dense")  # which RL run supplies post-RL results: "dense" or "exact"
+
+
+def find(pattern, run=None):
+    """Output files of one run. Dense-reward kernels write under results/dense/; the exact-match run does not.
+    The pre-RL baseline always comes from the exact run (same base model, same eval settings)."""
+    run = run or RUN
+    hits = sorted(glob.glob(str(OUT / "**" / pattern), recursive=True))
+    return [h for h in hits if ("/dense/" in h) == (run == "dense")]
 
 
 def jl(path):
@@ -75,7 +82,7 @@ def boot_ci(df, col="exact", by="id", n=1000):
 EV = {}
 for phase in ("pre", "post"):
     for fmt in FORMATS:
-        p = find(f"eval_{phase}_{fmt}.jsonl")
+        p = find(f"eval_{phase}_{fmt}.jsonl", run="exact" if phase == "pre" else None)
         if p:
             d = pd.DataFrame(jl(p[0]))
             d["phase"] = phase
@@ -84,6 +91,9 @@ ev = pd.concat(EV.values(), ignore_index=True) if EV else pd.DataFrame()
 TOK = {(r["id"], r["format"]): r for r in jl(OUT / "tokenizer_stats.jsonl")}
 LOGS = {f: json.load(open(find(f"train_log_{f}.json")[0])) for f in FORMATS if find(f"train_log_{f}.json")}
 RW = {f: jl(find(f"rewards_{f}.jsonl")[0]) for f in FORMATS if find(f"rewards_{f}.jsonl")}
+RW_EXACT = {f: jl(find(f"rewards_{f}.jsonl", "exact")[0]) for f in FORMATS if find(f"rewards_{f}.jsonl", "exact")}
+EV_EXACT_POST = {f: pd.DataFrame(jl(find(f"eval_post_{f}.jsonl", "exact")[0])) for f in FORMATS
+                 if find(f"eval_post_{f}.jsonl", "exact")}
 STEPS = {f: LOGS[f]["steps"] for f in LOGS}
 N_SAMPLES = int(ev["sample"].max() + 1) if len(ev) else 4
 N_PROMPTS = ev["id"].nunique() if len(ev) else 240

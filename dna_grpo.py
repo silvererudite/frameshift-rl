@@ -150,6 +150,20 @@ def reward(completion: str, target: str, task: str) -> float:
     return 1.0 if score(completion, target, task)["exact"] else 0.0
 
 
+def dense_reward(completion: str, target: str, task: str) -> float:
+    """Partial credit. revcomp: aligned matching bases / max(len(answer), len(target)), so length errors
+    cost credit; gc_count: 1 / (1 + |error|). Exact answers score 1.0 in both."""
+    ans = parse_answer(completion)
+    if not ans:
+        return 0.0
+    if task == "revcomp":
+        return sum(a == b for a, b in zip(ans, target)) / max(len(ans), len(target))
+    try:
+        return 1.0 / (1.0 + abs(int(ans) - int(target)))
+    except ValueError:
+        return 0.0
+
+
 def _completion_text(c):
     if isinstance(c, str):
         return c
@@ -163,10 +177,19 @@ def exact_match_reward(prompts=None, completions=None, target=None, task=None, *
     return [reward(_completion_text(c), t, k) for c, t, k in zip(completions, target, task)]
 
 
+def partial_credit_reward(prompts=None, completions=None, target=None, task=None, **kw):
+    return [dense_reward(_completion_text(c), t, k) for c, t, k in zip(completions, target, task)]
+
+
+REWARD = os.environ.get("REWARD", "exact")  # "exact" (main run) or "dense" (partial credit)
+
+
 # ----------------------------------------------------------------------------
 # GPU side (imports deferred so the CPU side needs no torch)
 # ----------------------------------------------------------------------------
 RESULTS = os.environ.get("RESULTS_DIR", "/kaggle/working/results")
+if os.environ.get("REWARD", "exact") != "exact":
+    RESULTS += "/" + os.environ["REWARD"]
 
 
 def log(*a):
@@ -262,7 +285,7 @@ def train_format(fmt, max_steps=100, time_budget_min=40.0, do_eval=True, n_eval=
     probes = render(probe_items, fmt, tok)
     probe_prompts = [p["prompt"] for p in probes]
 
-    if do_eval:
+    if do_eval and not os.environ.get("SKIP_PRE"):
         run_eval(model, tok, ev, f"{RESULTS}/eval_pre_{fmt}.jsonl")
 
     def save_probe(m, step):
@@ -293,7 +316,8 @@ def train_format(fmt, max_steps=100, time_budget_min=40.0, do_eval=True, n_eval=
     rlog = open(f"{RESULTS}/rewards_{fmt}.jsonl", "w")
 
     def logged_reward(prompts=None, completions=None, target=None, task=None, **kw):
-        rs = exact_match_reward(prompts, completions, target=target, task=task)
+        rs = (partial_credit_reward if REWARD == "dense" else exact_match_reward)(
+            prompts, completions, target=target, task=task)
         texts = [_completion_text(c) for c in completions]
         rlog.write(json.dumps(dict(call=calls["n"], task=list(task), reward=rs,
                                    clen=[len(t) for t in texts], parse_fail=[parse_answer(t) is None for t in texts],

@@ -12,3 +12,9 @@
 - smoke v2: torchao fix confirmed (LoRA injected). Failed because the smoke ran GRPO in a process seeing 2 GPUs
   (TRL ≥1.x refuses nn.DataParallel). Main kernels launch one subprocess per format with `CUDA_VISIBLE_DEVICES` set, so they avoid this.
 - main-b v1 failed on a missing results dir (fixed). main-a v1 and main-b v2 started ~21:47 local.
+- main-b (kmer6, exact-match reward) complete: 100 steps in 16.5 min (~10 s/step), post-eval 213 s.
+  Result: revcomp 0/1,600 correct training rollouts, 0% eval before and after; 76/100 steps had all-zero reward
+  (grad_norm 0). Base model: 93% of revcomp answers have the wrong length; per-base agreement ≈ 25% (chance).
+  GC count 1.7% → 2.1%. → Exact-match GRPO cannot bootstrap a skill at 0% pass@8.
+- Human approved a second run with a partial-credit reward (revcomp: aligned matches / max length; GC: 1/(1+|err|)).
+  Kernels `dna-grpo-dense-a` (raw, perbase) and `dna-grpo-dense-b` (kmer6); pre-RL baseline reused from the exact run.

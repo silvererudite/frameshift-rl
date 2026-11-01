@@ -86,9 +86,11 @@ inside tokens (raw 71–76%, kmer6 66–74%, with wide CIs because only ~6% of b
 shows no consistent pattern. Length errors are what RL fixes (Fig 4C: 81% → 9% raw, 73% → 2% per-base, 93% → 20% 6-mer),
 and it fixes them by copying.
 
-### 5. Learning dynamics ([Fig 5 GIF](figures/fig5_learning.gif))
+### 5. Learning dynamics ([Fig 10](figures/fig10_copying_takes_over.png), [Fig 5 GIF](figures/fig5_learning.gif))
 
-The probe grid (24 fixed prompts, greedy, every 10 steps) shows grey (wrong-length) rows turning into full-length rows
+On 24 fixed probe prompts (greedy decoding, checked every 10 steps), verbatim copying rises from 0–13% at step 0 to
+96% (per-base), 75% (raw) and 63% (6-mer) by step 100. Most of the shift happens between steps 20 and 50. Under the
+exact-match reward the same curves stay flat. The probe grid grey (wrong-length) rows turning into full-length rows
 over training, with the same ~25% scatter of correct bases a copy produces.
 
 ## What this means for DNA LMs like Carbon-X

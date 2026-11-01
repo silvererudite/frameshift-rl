@@ -9,3 +9,6 @@
   Failed at LoRA injection: Kaggle's preinstalled torchao 0.10 is rejected by current PEFT → kernel header now uninstalls torchao.
 - Kaggle limit: max 2 concurrent batch GPU sessions. Main run split into `dna-grpo-main-a` (raw + perbase, one GPU each)
   and `dna-grpo-main-b` (kmer6). Each training run has a 30-min wall-clock cap (callback stops training and records the step).
+- smoke v2: torchao fix confirmed (LoRA injected). Failed because the smoke ran GRPO in a process seeing 2 GPUs
+  (TRL ≥1.x refuses nn.DataParallel). Main kernels launch one subprocess per format with `CUDA_VISIBLE_DEVICES` set, so they avoid this.
+- main-b v1 failed on a missing results dir (fixed). main-a v1 and main-b v2 started ~21:47 local.

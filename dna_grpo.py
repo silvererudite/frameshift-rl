@@ -370,6 +370,7 @@ def main(stage="smoke"):
         # run one subprocess per format, each pinned to a GPU
         import subprocess
         import torch
+        os.makedirs(RESULTS, exist_ok=True)
         fmts = os.environ["FORMATS"].split(",")
         ngpu = max(1, torch.cuda.device_count())
         log("GPUs:", ngpu, "formats:", fmts)

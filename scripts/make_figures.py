@@ -120,6 +120,15 @@ for phase in ("pre", "post"):
                 S[f"{task}_{phase}_{fmt}_{b}"] = acc(phase, fmt, task, b)[0]
 
 
+for fmt, d in EV_EXACT_POST.items():
+    for task in ("revcomp", "gc_count"):
+        S[f"{task}_postexact_{fmt}"] = boot_ci(d[d.task == task])[0]
+for (phase, fmt), d in EV.items():
+    rc = d[d.task == "revcomp"]
+    S[f"revcomp_hamming_{phase}_{fmt}"] = boot_ci(rc.assign(h=rc.hamming_sim.fillna(0.0)), "h")[0]
+    S[f"revcomp_lenok_{phase}_{fmt}"] = 1 - rc.len_mismatch.fillna(True).astype(float).mean()
+
+
 def pts(x):
     return f"{100 * x:.0f}"
 
@@ -191,9 +200,9 @@ def reward_by_step(fmt):
     return d.groupby(["task", "step"]).reward.mean()
 
 
-def zero_std_by_step(fmt):
+def zero_std_by_step(fmt, src=None):
     out = []
-    for r in RW[fmt]:
+    for r in (src or RW)[fmt]:
         g = pd.DataFrame(dict(p=r["prompt_idx"], r=r["reward"], t=r["task"]))
         s = g.groupby("p").agg(std=("r", "std"), t=("t", "first"))
         out.append(dict(step=r["call"], all=(s["std"] == 0).mean(),
@@ -230,6 +239,10 @@ def fig2():
             z = zero_std_by_step(fmt)[key]
             ax.plot(z.index, z.values, color=COL[fmt], alpha=0.2, lw=1)
             ax.plot(z.index, z.rolling(10, min_periods=1).mean(), color=COL[fmt], lw=2, label=LABEL[fmt])
+            if key == "all" and fmt in RW_EXACT and RUN == "dense":
+                ze = zero_std_by_step(fmt, RW_EXACT)[key].rolling(10, min_periods=1).mean()
+                ax.plot(ze.index, ze.values, color=COL[fmt], lw=1.6, ls=":",
+                        label=f"{LABEL[fmt]} · exact-match reward")
         ax.set_ylabel(lab, fontsize=10)
         ax.set_xlabel("GRPO step")
         ax.set_xlim(0, max(STEPS.values()) * 1.18)
@@ -309,7 +322,7 @@ def position_errors(phase, fmt):
 def fig4():
     PE = {(p, f): position_errors(p, f) for p in ("pre", "post") for f in FORMATS}
     fig = plt.figure(figsize=(14, 5.4))
-    gs = fig.add_gridspec(1, 3, width_ratios=[1.35, 1, 0.8], wspace=0.32)
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.35, 1, 0.8], wspace=0.38)
     ax = fig.add_subplot(gs[0])
     xs, labs = [], []
     S["fig4"] = {}
@@ -339,7 +352,11 @@ def fig4():
     ax.bar([0], [0], color="white", edgecolor=INK2, label="before RL")
     ax.bar([0], [0], color=INK2, edgecolor=INK2, label="after RL")
     ax.bar([0], [0], color="white", edgecolor=INK2, hatch="///", label="token-interior base")
-    ax.legend(loc="upper right", fontsize=9.5)
+    ax.axhline(0.75, color=INK2, ls="--", lw=1)
+    ax.text(8.6, 0.765, "chance (random base) = 75%", ha="right", fontsize=9, color=INK2)
+    ax.set_ylim(0, 1.18)
+    ax.set_yticks(np.linspace(0, 1, 6), [f"{v:.0%}" for v in np.linspace(0, 1, 6)])
+    ax.legend(loc="upper left", fontsize=9, ncol=3, columnspacing=1)
     ax.text(0.5, -0.24, "edge = first/last base of its token · per-base has no interior bases (control)",
             transform=ax.transAxes, fontsize=9, color=INK2, ha="center")
 
@@ -355,8 +372,11 @@ def fig4():
     ax.set_xticks(range(6), [str(i) for i in range(6)])
     ax.set_xlabel("position of input base inside its 6-mer")
     ax.set_ylabel("per-base error rate")
-    ax.set_title("B · 6-mer view: error by k-mer position", loc="left", fontsize=12)
-    ax.legend(fontsize=9.5)
+    ax.set_title("B · 6-mer: error by k-mer position", loc="left", fontsize=12)
+    ax.axhline(0.75, color=INK2, ls="--", lw=1)
+    ax.set_ylim(0, 1.05)
+    ax.set_yticks(np.linspace(0, 1, 6), [f"{v:.0%}" for v in np.linspace(0, 1, 6)])
+    ax.legend(fontsize=9.5, loc="lower right")
 
     ax = fig.add_subplot(gs[2])
     for k, fmt in enumerate(FORMATS):
@@ -514,6 +534,45 @@ def fig7():
     save(fig, "fig7_compression_vs_accuracy")
 
 
+# ----------------------------------------------------------------------------- Fig 8 (exact-match null)
+def fig8():
+    if not RW_EXACT:
+        return
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.6))
+    S["fig8"] = {}
+    for ax, task in zip(axes, ("revcomp", "gc_count")):
+        for k, fmt in enumerate(FORMATS):
+            if fmt not in RW_EXACT:
+                continue
+            rs = [v for r in RW_EXACT[fmt] for t, v in zip(r["task"], r["reward"]) if t == task]
+            hit = float(np.mean(np.array(rs) > 0))
+            # groups (8 completions of one prompt) where at least one completion was right
+            groups = []
+            for r in RW_EXACT[fmt]:
+                g = pd.DataFrame(dict(p=r["prompt_idx"], t=r["task"], r=r["reward"]))
+                groups.extend(g[g.t == task].groupby("p").r.max())
+            ghit = float(np.mean(np.array(groups) > 0))
+            ax.bar(k - 0.18, hit, 0.34, color=COL[fmt])
+            ax.bar(k + 0.18, ghit, 0.34, color="white", edgecolor=COL[fmt], lw=1.6)
+            ax.text(k - 0.18, hit + 0.004, f"{sum(np.array(rs) > 0)}/{len(rs)}", ha="center", va="bottom", fontsize=9.5, color=INK)
+            ax.text(k + 0.18, ghit + 0.004, f"{sum(np.array(groups) > 0)}/{len(groups)}", ha="center", va="bottom",
+                    fontsize=9.5, color=INK)
+            S["fig8"][f"{fmt}_{task}"] = dict(rollouts_correct=int(sum(np.array(rs) > 0)), rollouts=len(rs),
+                                              groups_with_signal=int(sum(np.array(groups) > 0)), groups=len(groups))
+        ax.set_xticks(range(3), [LABEL[f] for f in FORMATS])
+        ax.set_title({"revcomp": "Reverse complement", "gc_count": "GC count"}[task], loc="left")
+        ax.set_ylabel("fraction")
+        ax.set_ylim(0, max(0.1, ax.get_ylim()[1]))
+    axes[0].bar([0], [0], color=INK2, label="training rollouts with reward 1")
+    axes[0].bar([0], [0], color="white", edgecolor=INK2, label="prompt groups with ≥1 correct (any gradient)")
+    axes[0].legend(loc="upper left", fontsize=9.5)
+    suptitle(fig, S.get("fig8_title", "With an exact-match reward, GRPO almost never sees a correct answer"),
+             f"Exact-match (1/0) GRPO run, {steps_txt} steps × 32 rollouts per format. A group of 8 with no correct answer has zero "
+             "advantage and contributes no gradient.")
+    fig.tight_layout()
+    save(fig, "fig8_sparse_reward_null")
+
+
 # ----------------------------------------------------------------------------- social card
 def social():
     import matplotlib.image as mpimg
@@ -548,6 +607,7 @@ if __name__ == "__main__":
         fig4()
         fig6()
         fig7()
+    fig8()
     fig5()
     social()
     json.dump({k: v for k, v in S.items() if k not in ("social_lines",)}, open(FIG / "summary.json", "w"),

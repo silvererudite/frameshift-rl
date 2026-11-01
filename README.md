@@ -4,7 +4,7 @@
 
 ![How the model sees DNA](figures/fig1_how_the_model_sees_dna.png)
 
-## The question, in plain terms
+## Motivation
 
 Imagine asking someone to spell **"TEACHER" backwards**: R-E-H-C-A-E-T. That's easy if you see the word one letter at
 a time (T · E · A · C · H · E · R), and harder if it arrives in chunks (TE · ACH · ER), because you have to break each
@@ -25,9 +25,9 @@ nothing else:
 | `perbase` | `A C G T A C …` → one letter per piece | T · E · A · C · H · E · R |
 | `kmer6` | `ACGTAC GATTCA` → Carbon-X-style 6-letter blocks | TEACHE · R |
 
-## What happened
+## Findings
 
-### Attempt 1: strict grading (completely right, or wrong)
+### Exact-match reward
 
 The model (Qwen3-0.6B, a small general-purpose AI model) **never got a single reverse complement right, 0 out of 4,568
 tries**, in any format. Before training, most of its answers weren't even the right length.
@@ -38,7 +38,7 @@ who only ever sees ✗, ✗, ✗ and never learns which direction is "warmer". T
 
 ![Exact-match reward gave zero signal](figures/fig8_sparse_reward_null.png)
 
-### Attempt 2: partial credit (points for each correct letter)
+### Partial-credit reward
 
 Now a slightly better answer earns slightly more points, so the model has a slope to climb. **It climbed the wrong one.**
 It learned to **copy the question as its answer**. A copy always has the right length, and by pure chance about 1 in 4
@@ -55,7 +55,7 @@ You can watch it happen. Copying takes over between steps 20 and 50 of training,
 
 ![Copying takes over](figures/fig10_copying_takes_over.png)
 
-### Did the chunking matter?
+### Effect of tokenization
 
 Only for the copying. Letter-by-letter input gave the most faithful copies (98% right length) and 6-letter blocks the
 least (80%). For the actual task, mistakes happen at chance rate everywhere, whether a letter sits at the edge of a chunk
@@ -63,7 +63,7 @@ or inside one. **You can't measure how chunking hurts a skill the model doesn't 
 
 ![Errors at chance everywhere](figures/fig4_error_positions.png)
 
-### Checking with a model that knows DNA: Carbon-X
+### Validation with Carbon-X
 
 *In progress: results will be added here.*
 
@@ -86,7 +86,7 @@ provides two T4s, so two copies run side by side: one reads plain DNA (Carbon-X'
 reads spaced letters (`A C G T …`). Training Carbon-X with RL is out of reach on free GPUs, so this is an evaluation-only
 check.
 
-## What I take away from this
+## Conclusions
 
 1. **Reinforcement learning amplifies skills a model already partly has. It can't create one from zero.** If a model never
    produces a correct answer, strict right/wrong feedback gives it nothing to work with.
@@ -95,7 +95,7 @@ check.
    the model can sometimes get right and grow from there.
 3. **The tokenizer question needs a model with the skill to begin with.** See the Carbon-X check above.
 
-## How it was done (technical summary)
+## Methods
 
 | | |
 |---|---|
@@ -110,7 +110,7 @@ check.
 Full write-up with every number, confidence interval and caveat: **[FINDINGS.md](FINDINGS.md)**.
 Interactive results page: [`site/index.html`](site/index.html).
 
-## All figures
+## Figures
 
 | | |
 |---|---|
@@ -127,7 +127,7 @@ Interactive results page: [`site/index.html`](site/index.html).
 | [Fig 11](figures/fig11_carbon_x_vs_qwen.png) | Small general model vs Carbon-X on the same questions |
 | [Fig 12](figures/fig12_carbon_x_error_positions.png) | Where Carbon-X's mistakes fall inside its 6-letter tokens |
 
-## Repo layout
+## Repository structure
 
 ```
 dna_grpo.py                 single-file library: data, formats, rewards, eval, GRPO training, Carbon-X eval (runs as a Kaggle kernel)
@@ -141,7 +141,7 @@ results/                    raw model answers, per-step rewards, training logs, 
 notes/                      progress log, FineDNA schema notes, post draft
 ```
 
-## Reproduce
+## Reproducibility
 
 ```bash
 uv venv --python 3.11 && source .venv/bin/activate

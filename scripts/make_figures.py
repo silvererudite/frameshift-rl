@@ -18,7 +18,7 @@ from matplotlib.patches import FancyArrowPatch, Rectangle
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from dna_grpo import FORMATS, format_seq, revcomp  # noqa: E402
+from dna_grpo import FORMATS, dense_reward, format_seq, revcomp  # noqa: E402
 
 import os
 OUT = pathlib.Path(os.environ.get("OUTPUTS_DIR", ROOT / "outputs"))
@@ -86,6 +86,7 @@ for phase in ("pre", "post"):
         if p:
             d = pd.DataFrame(jl(p[0]))
             d["phase"] = phase
+            d["pc"] = [dense_reward(c, t, k) for c, t, k in zip(d.completion, d.target, d.task)]
             EV[(phase, fmt)] = d
 ev = pd.concat(EV.values(), ignore_index=True) if EV else pd.DataFrame()
 TOK = {(r["id"], r["format"]): r for r in jl(OUT / "tokenizer_stats.jsonl")}
@@ -102,14 +103,14 @@ SUB = f"Qwen3-0.6B + LoRA · GRPO (TRL) · {steps_txt} steps · n={N_PROMPTS} ev
 S = {"steps": STEPS, "n_prompts": int(N_PROMPTS), "n_samples": N_SAMPLES}
 
 
-def acc(phase, fmt, task="revcomp", bucket=None):
+def acc(phase, fmt, task="revcomp", bucket=None, col="exact"):
     d = EV.get((phase, fmt))
     if d is None:
         return (np.nan,) * 3
     d = d[d.task == task]
     if bucket:
         d = d[d.bucket == bucket]
-    return boot_ci(d)
+    return boot_ci(d, col)
 
 
 for phase in ("pre", "post"):
@@ -216,6 +217,7 @@ def fig2():
     fig, axes = plt.subplots(2, 2, figsize=(13, 8), gridspec_kw=dict(height_ratios=[1.4, 1]))
     for ci, task in enumerate(("revcomp", "gc_count")):
         ax = axes[0, ci]
+        ends = []
         for fmt in FORMATS:
             if fmt not in RW:
                 continue
@@ -223,12 +225,17 @@ def fig2():
             ax.plot(r.index, r.values, color=COL[fmt], alpha=0.22, lw=1)
             sm = r.rolling(10, min_periods=1).mean()
             ax.plot(sm.index, sm.values, color=COL[fmt], lw=2.4)
-            ax.text(sm.index[-1] + 1.5, sm.values[-1], LABEL[fmt], color=INK, fontsize=10, va="center",
-                    fontweight="bold", bbox=dict(boxstyle="square,pad=0.1", fc="white", ec="none"))
             ax.plot([sm.index[-1]], [sm.values[-1]], "o", color=COL[fmt], ms=6)
+            ends.append((sm.values[-1], fmt, sm.index[-1]))
+        # direct labels, nudged apart so they never overlap
+        ends.sort()
+        ly = -1
+        for v, fmt, x in ends:
+            ly = max(v, ly + 0.035)
+            ax.text(x + 2.5, ly, LABEL[fmt], color=INK, fontsize=10, va="center", fontweight="bold")
         ax.set_title({"revcomp": "Reverse complement", "gc_count": "GC count"}[task], loc="left")
-        ax.set_ylabel("training reward (exact match)")
-        ax.set_ylim(-0.02, 1.02)
+        ax.set_ylabel("training reward (partial credit)" if RUN == "dense" else "training reward (exact match)")
+        ax.set_ylim(0, 0.6 if RUN == "dense" else 1.02)
         ax.set_xlim(0, max(STEPS.values()) * 1.18)
     for ci, (key, lab) in enumerate((("all", "groups with zero reward std\n(no learning signal)"),
                                      ("clen", "mean completion length (chars)"))):
@@ -270,8 +277,9 @@ def fig3():
         ax = axes[ai]
         for k, fmt in enumerate(FORMATS):
             off = (k - 1) * 0.07
-            pre = np.array([acc("pre", fmt, task, b) for b in BUCKETS])
-            post = np.array([acc("post", fmt, task, b) for b in BUCKETS])
+            pre = np.array([acc("pre", fmt, task, b, "pc") for b in BUCKETS])
+            post = np.array([acc("post", fmt, task, b, "pc") for b in BUCKETS])
+            S.setdefault("fig3_pc", {})[f"{task}|{fmt}"] = dict(pre=pre[:, 0].tolist(), post=post[:, 0].tolist())
             if np.isnan(post[:, 0]).all():
                 continue
             ax.fill_between(x + off, pre[:, 0], post[:, 0], color=COL[fmt], alpha=0.12, lw=0)
@@ -282,19 +290,18 @@ def fig3():
             ax.text(2.18, post[-1, 0], LABEL[fmt], color=INK, fontweight="bold", va="center", fontsize=10)
         ax.set_xticks(x, [f"{b} bp" for b in BUCKETS])
         ax.set_xlim(-0.25, 2.65)
-        ax.set_ylim(-0.03, 1.03)
-        ax.set_yticks(np.linspace(0, 1, 6), [f"{v:.0%}" for v in np.linspace(0, 1, 6)])
+        ax.set_ylim(0, 0.5)
+        ax.set_yticks(np.linspace(0, 0.5, 6), [f"{v:.0%}" for v in np.linspace(0, 0.5, 6)])
         ax.set_xlabel("sequence length")
-        ax.set_ylabel("exact-match accuracy")
+        ax.set_ylabel("partial-credit score (eval)")
+        if task == "revcomp":
+            ax.axhline(0.25, color=INK2, ls=":", lw=1.2)
+            ax.text(-0.2, 0.258, "≈ score of copying the input (25%)", fontsize=9, color=INK2)
         ax.set_title({"revcomp": "Reverse complement", "gc_count": "GC count"}[task], loc="left")
     axes[1].plot([], [], "k--", marker="o", mfc="white", label="before RL")
     axes[1].plot([], [], "k-", marker="o", label="after RL")
-    axes[1].legend(loc="upper right")
-    a = S.get("revcomp_post_perbase_61-90", np.nan) - S.get("revcomp_post_raw_61-90", np.nan)
-    if not np.isnan(a):
-        axes[0].annotate(f"per-base − raw\nat 61–90 bp: {100 * a:+.0f} pts", xy=(2, S["revcomp_post_perbase_61-90"]),
-                         xytext=(1.25, 0.82), fontsize=10, color=INK, arrowprops=dict(arrowstyle="-", color=INK2))
-    S["fig3_gap_61_90"] = a
+    axes[1].legend(loc="upper left")
+    S["fig3_note"] = "exact match is 0% for revcomp in every cell; partial-credit score plotted instead"
     suptitle(fig, S.get("fig3_title", "Accuracy falls with length; shaded band = what RL bought"), SUB)
     fig.tight_layout()
     save(fig, "fig3_length_cliff")
@@ -436,9 +443,9 @@ def fig5():
             ax.set_title(f"{LABEL[f]}   {nex}/24 exact", loc="left", fontsize=12, color=INK)
             ax.set_xlabel("output position")
         axes[0].set_ylabel("24 probe sequences (short → long)")
-        fig.suptitle(f"Watching RL learn reverse complement, base by base · step {step}", x=0.01, ha="left",
+        fig.suptitle(f"Partial-credit GRPO, step {step}: right lengths appear, right bases do not (greedy, 24 probe prompts)", x=0.01, ha="left",
                      fontsize=14, fontweight="bold", color=INK)
-        fig.text(0.01, 0.885, "green = correct base · red = wrong base · grey = wrong length / no answer · greedy decoding",
+        fig.text(0.01, 0.885, "green = correct base · red = wrong base · grey = wrong length or no answer · ~25% green is what a copy of the input scores",
                  fontsize=10, color=INK2)
         fig.subplots_adjust(top=0.80, bottom=0.13, left=0.04, right=0.99, wspace=0.08)
         fig.canvas.draw()
@@ -519,15 +526,15 @@ def fig7():
         e = EV.get(("post", fmt))
         if e is None:
             continue
-        e = e[e.task == "revcomp"].groupby("id").agg(acc=("exact", "mean"), L=("length", "first")).reset_index()
+        e = e[e.task == "revcomp"].groupby("id").agg(acc=("pc", "mean"), L=("length", "first")).reset_index()
         e["tpb"] = [TOK[(i, fmt)]["tokens_per_base"] for i in e.id]
         jit = RNG.normal(0, 0.006, len(e)) if fmt == "perbase" else 0
         ax.scatter(e.tpb + jit, e.acc + RNG.normal(0, 0.012, len(e)), s=22, color=COL[fmt], alpha=0.55,
                    edgecolor="white", lw=0.5, label=LABEL[fmt])
         ax.errorbar(e.tpb.mean(), e.acc.mean(), xerr=e.tpb.std(), fmt="D", color=COL[fmt], ms=10, mec=INK, lw=1.4)
     ax.set_xlabel("input tokens per base (lower = more compressed)")
-    ax.set_ylabel("post-RL exact match (mean of 4 samples)")
-    ax.set_ylim(-0.05, 1.05)
+    ax.set_ylabel("post-RL partial-credit score\n(mean of 4 samples)")
+    ax.set_ylim(-0.02, 0.6)
     ax.legend(loc="center left")
     suptitle(fig, S.get("fig7_title", "More compression, less accuracy: revcomp vs tokens per base"),
              "One dot per revcomp eval prompt (n=120 per format), jittered. Diamond = format mean ± SD of tokens/base.")
@@ -573,6 +580,70 @@ def fig8():
     save(fig, "fig8_sparse_reward_null")
 
 
+# ----------------------------------------------------------------------------- Fig 9 (what the answers are)
+CATS = [("exact", "correct reverse complement", "#1f2328"), ("copy", "verbatim copy of the input", "#CC79A7"),
+        ("other", "right length, other content", "#9aa4b2"), ("len", "wrong length", "#d9dde2"),
+        ("none", "no <answer> tag", "#ffffff")]
+
+
+def answer_kinds(d):
+    rc = d[d.task == "revcomp"]
+    a = rc.answer.fillna("")
+    exact = a == rc.target
+    copy = (a == rc.seq) & ~exact
+    none = rc.answer.isna()
+    other = (a.str.len() == rc.length) & ~exact & ~copy & ~none
+    wl = ~exact & ~copy & ~none & ~other
+    return {"exact": exact.mean(), "copy": copy.mean(), "other": other.mean(), "len": wl.mean(), "none": none.mean()}
+
+
+def fig9():
+    rows = []
+    for fmt in FORMATS:
+        for tag, d in (("before RL", EV.get(("pre", fmt))), ("after exact-match RL", EV_EXACT_POST.get(fmt)),
+                       ("after partial-credit RL", EV.get(("post", fmt)) if RUN == "dense" else None)):
+            if d is not None:
+                rows.append((fmt, tag, answer_kinds(d)))
+    if not rows:
+        return
+    fig, ax = plt.subplots(figsize=(13, 0.52 * len(rows) + 2.2))
+    ax.grid(False)
+    ys = []
+    y = 0
+    prev = None
+    for fmt, tag, k in rows:
+        if prev is not None and fmt != prev:
+            y += 0.6
+        left = 0
+        for key, lab, c in CATS:
+            ax.barh(y, k[key], left=left, color=c, edgecolor="#9aa4b2" if key == "none" else "white", lw=1,
+                    hatch="///" if key == "none" else None, height=0.78)
+            if k[key] >= 0.06:
+                ax.text(left + k[key] / 2, y, f"{k[key]:.0%}", ha="center", va="center", fontsize=10,
+                        color="white" if key in ("exact", "copy") else INK, fontweight="bold")
+            left += k[key]
+        ax.text(-0.01, y, tag, ha="right", va="center", fontsize=10.5, color=INK)
+        if fmt != prev:
+            ax.text(-0.215, y + (0.0), LABEL[fmt], ha="right", va="center", fontsize=11.5, fontweight="bold", color=COL[fmt])
+        S.setdefault("fig9", {})[f"{fmt}|{tag}"] = {kk: float(v) for kk, v in k.items()}
+        ys.append(y)
+        prev = fmt
+        y += 1
+    ax.set_ylim(y - 0.4, -1.4)
+    ax.set_xlim(0, 1)
+    ax.set_yticks([])
+    ax.set_xticks(np.linspace(0, 1, 6), [f"{v:.0%}" for v in np.linspace(0, 1, 6)])
+    ax.spines["left"].set_visible(False)
+    for i, (key, lab, c) in enumerate(CATS):
+        ax.barh([0], [0], color=c, edgecolor="#9aa4b2", hatch="///" if key == "none" else None, label=lab)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=5, fontsize=9.5, handlelength=1.2, columnspacing=1.2)
+    ax.set_xlabel(f"share of reverse-complement answers (120 eval prompts × {N_SAMPLES} samples per row)")
+    suptitle(fig, S.get("fig9_title", "Partial-credit RL taught the model to copy the input"),
+             "Qwen3-0.6B + LoRA · GRPO (TRL) · same eval prompts in every row. A copy always has the right length and "
+             "matches the reverse complement at ~25% of positions by chance.", y=1.08)
+    save(fig, "fig9_what_the_answers_are")
+
+
 # ----------------------------------------------------------------------------- social card
 def social():
     import matplotlib.image as mpimg
@@ -587,9 +658,9 @@ def social():
     lines = S.get("social_lines", [])
     yy = 0.66
     for big, small in lines:
-        fig.text(0.64, yy, big, fontsize=40, fontweight="bold", color=INK)
-        fig.text(0.64, yy - 0.065, small, fontsize=13, color=INK2, wrap=True)
-        yy -= 0.27
+        fig.text(0.63, yy, big, fontsize=36, fontweight="bold", color=INK)
+        fig.text(0.63, yy - 0.035, small, fontsize=13, color=INK2, va="top", linespacing=1.4)
+        yy -= 0.30
     fig.text(0.03, 0.04, "Shamima Hossain · github.com/silvererudite/frameshift-rl", fontsize=12, color=INK2)
     fig.savefig(FIG / "social_card.png", dpi=100, facecolor="white")
     plt.close(fig)
@@ -608,6 +679,7 @@ if __name__ == "__main__":
         fig6()
         fig7()
     fig8()
+    fig9()
     fig5()
     social()
     json.dump({k: v for k, v in S.items() if k not in ("social_lines",)}, open(FIG / "summary.json", "w"),

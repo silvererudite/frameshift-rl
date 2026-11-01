@@ -1,0 +1,23 @@
+{
+ "fig2_title": "Partial-credit reward climbs for every format, but what it climbs toward is copying the input",
+ "fig3_title": "Partial-credit RL lifts the score at every length, only up to what a verbatim copy earns (~25%)",
+ "fig4_title": "Per-base errors sit at chance (~75%) at token edges and inside tokens: no skill, so no boundary effect",
+ "fig7_title": "Input compression barely matters once the policy copies: every format sits near the 25% copy score",
+ "fig8_title": "Exact-match reward: 0 of 4,568 reverse-complement rollouts were correct, so GRPO had no gradient",
+ "fig9_title": "Partial-credit RL taught the model to copy the DNA instead of reverse-complementing it",
+ "social_lines": [
+  [
+   "0 / 4,568",
+   "correct reverse complements during exact-match\nRL training (all three formats)"
+  ],
+  [
+   "74–98%",
+   "of answers became a verbatim copy of the input\nafter partial-credit RL (kmer6 → per-base)"
+  ]
+ ],
+ "tldr": [
+  "<strong>Exact-match reward gives no learning signal.</strong> 0 of 4,568 reverse-complement training rollouts were correct in any format, so every GRPO group had zero variance and zero gradient.",
+  "<strong>Partial-credit reward gets gamed.</strong> The policy learned to copy the input verbatim: 88% (raw), 98% (per-base), 74% (6-mer) of answers after RL, up from 8%, 17% and 5%. A copy always has the right length and scores ~25% by chance.",
+  "<strong>The format changed how faithfully the model copies, not whether it can reverse-complement.</strong> Errors sit at chance (~75% per base) at token edges and inside tokens alike."
+ ]
+}

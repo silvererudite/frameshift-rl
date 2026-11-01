@@ -37,7 +37,7 @@ data["acc"] = {}
 for task in ("revcomp", "gc_count"):
     for fmt in mf.FORMATS:
         for ph in ("pre", "post"):
-            data["acc"][f"{task}|{fmt}|{ph}"] = [[f(v) for v in mf.acc(ph, fmt, task, b)] for b in mf.BUCKETS]
+            data["acc"][f"{task}|{fmt}|{ph}"] = [[f(v) for v in mf.acc(ph, fmt, task, b, "pc")] for b in mf.BUCKETS]
 data["fig4"] = summary.get("fig4", {})
 # example browser: revcomp prompts, sample 0 answer per format/phase
 ex = {}

@@ -1,0 +1,347 @@
+{
+ "steps": {
+  "raw": 100,
+  "perbase": 100,
+  "kmer6": 100
+ },
+ "n_prompts": 240,
+ "n_samples": 4,
+ "revcomp_pre_raw": 0.0,
+ "revcomp_pre_raw_12-30": 0.0,
+ "revcomp_pre_raw_31-60": 0.0,
+ "revcomp_pre_raw_61-90": 0.0,
+ "gc_count_pre_raw": 0.014583333333333334,
+ "gc_count_pre_raw_12-30": 0.00625,
+ "gc_count_pre_raw_31-60": 0.0375,
+ "gc_count_pre_raw_61-90": 0.0,
+ "revcomp_pre_perbase": 0.0,
+ "revcomp_pre_perbase_12-30": 0.0,
+ "revcomp_pre_perbase_31-60": 0.0,
+ "revcomp_pre_perbase_61-90": 0.0,
+ "gc_count_pre_perbase": 0.014583333333333334,
+ "gc_count_pre_perbase_12-30": 0.01875,
+ "gc_count_pre_perbase_31-60": 0.01875,
+ "gc_count_pre_perbase_61-90": 0.00625,
+ "revcomp_pre_kmer6": 0.0,
+ "revcomp_pre_kmer6_12-30": 0.0,
+ "revcomp_pre_kmer6_31-60": 0.0,
+ "revcomp_pre_kmer6_61-90": 0.0,
+ "gc_count_pre_kmer6": 0.016666666666666666,
+ "gc_count_pre_kmer6_12-30": 0.0125,
+ "gc_count_pre_kmer6_31-60": 0.025,
+ "gc_count_pre_kmer6_61-90": 0.0125,
+ "revcomp_post_raw": 0.0,
+ "revcomp_post_raw_12-30": 0.0,
+ "revcomp_post_raw_31-60": 0.0,
+ "revcomp_post_raw_61-90": 0.0,
+ "gc_count_post_raw": 0.022916666666666665,
+ "gc_count_post_raw_12-30": 0.00625,
+ "gc_count_post_raw_31-60": 0.04375,
+ "gc_count_post_raw_61-90": 0.01875,
+ "revcomp_post_perbase": 0.0,
+ "revcomp_post_perbase_12-30": 0.0,
+ "revcomp_post_perbase_31-60": 0.0,
+ "revcomp_post_perbase_61-90": 0.0,
+ "gc_count_post_perbase": 0.0125,
+ "gc_count_post_perbase_12-30": 0.0,
+ "gc_count_post_perbase_31-60": 0.0375,
+ "gc_count_post_perbase_61-90": 0.0,
+ "revcomp_post_kmer6": 0.0,
+ "revcomp_post_kmer6_12-30": 0.0,
+ "revcomp_post_kmer6_31-60": 0.0,
+ "revcomp_post_kmer6_61-90": 0.0,
+ "gc_count_post_kmer6": 0.027083333333333334,
+ "gc_count_post_kmer6_12-30": 0.0,
+ "gc_count_post_kmer6_31-60": 0.025,
+ "gc_count_post_kmer6_61-90": 0.05625,
+ "revcomp_postexact_raw": 0.0,
+ "gc_count_postexact_raw": 0.03125,
+ "revcomp_postexact_perbase": 0.0,
+ "gc_count_postexact_perbase": 0.05416666666666667,
+ "revcomp_postexact_kmer6": 0.0,
+ "gc_count_postexact_kmer6": 0.020833333333333332,
+ "revcomp_hamming_pre_raw": 0.044097063869666865,
+ "revcomp_lenok_pre_raw": 0.19374999999999998,
+ "revcomp_hamming_pre_perbase": 0.06457501921976812,
+ "revcomp_lenok_pre_perbase": 0.27083333333333337,
+ "revcomp_hamming_pre_kmer6": 0.017062866870385576,
+ "revcomp_lenok_pre_kmer6": 0.06666666666666665,
+ "revcomp_hamming_post_raw": 0.22193706364264323,
+ "revcomp_lenok_post_raw": 0.9125,
+ "revcomp_hamming_post_perbase": 0.23807540615064324,
+ "revcomp_lenok_post_perbase": 0.98125,
+ "revcomp_hamming_post_kmer6": 0.19363255511596028,
+ "revcomp_lenok_post_kmer6": 0.7958333333333334,
+ "fig2_title": "Partial-credit reward climbs for every format, but what it climbs toward is copying the input",
+ "fig3_title": "Partial-credit RL lifts the score at every length, only up to what a verbatim copy earns (~25%)",
+ "fig4_title": "Per-base errors sit at chance (~75%) at token edges and inside tokens: no skill, so no boundary effect",
+ "fig7_title": "Input compression barely matters once the policy copies: every format sits near the 25% copy score",
+ "fig8_title": "Exact-match reward: 0 of 4,568 reverse-complement rollouts were correct, so GRPO had no gradient",
+ "fig9_title": "Partial-credit RL taught the model to copy the DNA instead of reverse-complementing it",
+ "tldr": [
+  "<strong>Exact-match reward gives no learning signal.</strong> 0 of 4,568 reverse-complement training rollouts were correct in any format, so every GRPO group had zero variance and zero gradient.",
+  "<strong>Partial-credit reward gets gamed.</strong> The policy learned to copy the input verbatim: 88% (raw), 98% (per-base), 74% (6-mer) of answers after RL, up from 8%, 17% and 5%. A copy always has the right length and scores ~25% by chance.",
+  "<strong>The format changed how faithfully the model copies, not whether it can reverse-complement.</strong> Errors sit at chance (~75% per base) at token edges and inside tokens alike."
+ ],
+ "fig1": {
+  "id": "ev0048",
+  "length": 40,
+  "ntok_raw": 19,
+  "ntok_perbase": 40,
+  "ntok_kmer6": 19
+ },
+ "fig2": {
+  "revcomp_first10": {
+   "raw": 0.2099805453668991,
+   "perbase": 0.19571162370392883,
+   "kmer6": 0.1654924639154471
+  },
+  "revcomp_last10": {
+   "raw": 0.2925110368670387,
+   "perbase": 0.2784292571284369,
+   "kmer6": 0.2649303599664135
+  }
+ },
+ "fig3_pc": {
+  "revcomp|raw": {
+   "pre": [
+    0.19907863699245693,
+    0.2070259691999337,
+    0.19957573286882177
+   ],
+   "post": [
+    0.24766847610738654,
+    0.24918765840765014,
+    0.2209687251283642
+   ]
+  },
+  "revcomp|perbase": {
+   "pre": [
+    0.20865719872865363,
+    0.1965861064255932,
+    0.18678139828946957
+   ],
+   "post": [
+    0.25226582469667064,
+    0.2476828972008418,
+    0.22849433659639776
+   ]
+  },
+  "revcomp|kmer6": {
+   "pre": [
+    0.18491324251213764,
+    0.15954738505912675,
+    0.13379826974521297
+   ],
+   "post": [
+    0.22732755817806688,
+    0.24262643970031136,
+    0.22900659883441624
+   ]
+  },
+  "gc_count|raw": {
+   "pre": [
+    0.1514944201947043,
+    0.18892216000427592,
+    0.0561681998864191
+   ],
+   "post": [
+    0.13587269756387405,
+    0.24873672334609837,
+    0.09606589506366352
+   ]
+  },
+  "gc_count|perbase": {
+   "pre": [
+    0.1833673842497372,
+    0.1759120128646488,
+    0.07303323997270587
+   ],
+   "post": [
+    0.1399920616556646,
+    0.25666339736652233,
+    0.08049662625646922
+   ]
+  },
+  "gc_count|kmer6": {
+   "pre": [
+    0.16007626309556455,
+    0.16929422012314702,
+    0.07677206685865916
+   ],
+   "post": [
+    0.14305318364770764,
+    0.19782401725488993,
+    0.20810906562328357
+   ]
+  }
+ },
+ "fig3_note": "exact match is 0% for revcomp in every cell; partial-credit score plotted instead",
+ "fig4": {
+  "raw_boundary_pre": {
+   "err": 0.7711414715026638,
+   "n_positions": 3950
+  },
+  "raw_boundary_post": {
+   "err": 0.7581915939045211,
+   "n_positions": 19242
+  },
+  "raw_interior_pre": {
+   "err": 0.7097298534798534,
+   "n_positions": 226
+  },
+  "raw_interior_post": {
+   "err": 0.7648459383753501,
+   "n_positions": 1183
+  },
+  "perbase_boundary_pre": {
+   "err": 0.7543541778370391,
+   "n_positions": 6307
+  },
+  "perbase_boundary_post": {
+   "err": 0.7570555051098877,
+   "n_positions": 22196
+  },
+  "kmer6_boundary_pre": {
+   "err": 0.7561494634912677,
+   "n_positions": 1292
+  },
+  "kmer6_boundary_post": {
+   "err": 0.7542645042415163,
+   "n_positions": 17725
+  },
+  "kmer6_interior_pre": {
+   "err": 0.6591666666666668,
+   "n_positions": 81
+  },
+  "kmer6_interior_post": {
+   "err": 0.7403936822253653,
+   "n_positions": 1096
+  },
+  "kmer6_pos6_pre": [
+   0.8125777000777,
+   0.6964178498269408,
+   0.7618589743589742,
+   0.8142088971634426,
+   0.7079497522679341,
+   0.7183328035600763
+  ],
+  "kmer6_pos6_post": [
+   0.7575334573660467,
+   0.7371792579939901,
+   0.7584151030021565,
+   0.7716084201017236,
+   0.7463722041847042,
+   0.7477538768275375
+  ],
+  "raw_lenmismatch_pre": 0.80625,
+  "raw_lenmismatch_post": 0.0875,
+  "perbase_lenmismatch_pre": 0.7291666666666666,
+  "perbase_lenmismatch_post": 0.01875,
+  "kmer6_lenmismatch_pre": 0.9333333333333333,
+  "kmer6_lenmismatch_post": 0.20416666666666666
+ },
+ "fig8": {
+  "raw_revcomp": {
+   "rollouts_correct": 0,
+   "rollouts": 1464,
+   "groups_with_signal": 0,
+   "groups": 183
+  },
+  "perbase_revcomp": {
+   "rollouts_correct": 0,
+   "rollouts": 1464,
+   "groups_with_signal": 0,
+   "groups": 183
+  },
+  "kmer6_revcomp": {
+   "rollouts_correct": 0,
+   "rollouts": 1640,
+   "groups_with_signal": 0,
+   "groups": 205
+  },
+  "raw_gc_count": {
+   "rollouts_correct": 33,
+   "rollouts": 1416,
+   "groups_with_signal": 29,
+   "groups": 177
+  },
+  "perbase_gc_count": {
+   "rollouts_correct": 43,
+   "rollouts": 1416,
+   "groups_with_signal": 33,
+   "groups": 177
+  },
+  "kmer6_gc_count": {
+   "rollouts_correct": 28,
+   "rollouts": 1560,
+   "groups_with_signal": 26,
+   "groups": 195
+  }
+ },
+ "fig9": {
+  "raw|before RL": {
+   "exact": 0.0,
+   "copy": 0.07708333333333334,
+   "other": 0.11666666666666667,
+   "len": 0.79375,
+   "none": 0.0125
+  },
+  "raw|after exact-match RL": {
+   "exact": 0.0,
+   "copy": 0.03958333333333333,
+   "other": 0.07708333333333334,
+   "len": 0.7770833333333333,
+   "none": 0.10625
+  },
+  "raw|after partial-credit RL": {
+   "exact": 0.0,
+   "copy": 0.88125,
+   "other": 0.03125,
+   "len": 0.0875,
+   "none": 0.0
+  },
+  "perbase|before RL": {
+   "exact": 0.0,
+   "copy": 0.16666666666666666,
+   "other": 0.10416666666666667,
+   "len": 0.66875,
+   "none": 0.06041666666666667
+  },
+  "perbase|after exact-match RL": {
+   "exact": 0.0,
+   "copy": 0.19791666666666666,
+   "other": 0.07916666666666666,
+   "len": 0.6645833333333333,
+   "none": 0.058333333333333334
+  },
+  "perbase|after partial-credit RL": {
+   "exact": 0.0,
+   "copy": 0.98125,
+   "other": 0.0,
+   "len": 0.01875,
+   "none": 0.0
+  },
+  "kmer6|before RL": {
+   "exact": 0.0,
+   "copy": 0.04583333333333333,
+   "other": 0.020833333333333332,
+   "len": 0.8541666666666666,
+   "none": 0.07916666666666666
+  },
+  "kmer6|after exact-match RL": {
+   "exact": 0.0,
+   "copy": 0.008333333333333333,
+   "other": 0.03333333333333333,
+   "len": 0.8770833333333333,
+   "none": 0.08125
+  },
+  "kmer6|after partial-credit RL": {
+   "exact": 0.0,
+   "copy": 0.7395833333333334,
+   "other": 0.05625,
+   "len": 0.19583333333333333,
+   "none": 0.008333333333333333
+  }
+ }
+}

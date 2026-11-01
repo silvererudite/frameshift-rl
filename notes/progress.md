@@ -18,3 +18,14 @@
   GC count 1.7% → 2.1%. → Exact-match GRPO cannot bootstrap a skill at 0% pass@8.
 - Human approved a second run with a partial-credit reward (revcomp: aligned matches / max length; GC: 1/(1+|err|)).
   Kernels `dna-grpo-dense-a` (raw, perbase) and `dna-grpo-dense-b` (kmer6); pre-RL baseline reused from the exact run.
+- main-a (exact, raw + perbase): both stopped by the 30-min cap at step 90. revcomp 0% pre/post in every format.
+- dense-a / dense-b (partial credit): 100 steps each (raw 13.1 min, perbase 24.7, kmer6 17.7). Policy collapses to copying the
+  input: 88% / 98% / 74% verbatim copies (raw / perbase / kmer6). No answers are reverse-only or complement-only.
+- Figure QA (all opened and checked):
+  - fig1: tokenization of one 40-bp eval sequence in each format (6-mer boundaries marked).
+  - fig2: partial-credit reward curves + zero-std groups (dotted = exact run) + completion length.
+  - fig3: partial-credit score by length bucket, pre vs post (exact match is 0 everywhere, noted).
+  - fig4: per-base error at token edges vs inside tokens with a 75% chance line; 6-mer position; length errors.
+  - fig5: probe grid GIF (121 KB) + final frame. fig6: before/after examples picked by rule (first id per bucket).
+  - fig7: tokens per base vs post-RL partial credit. fig8: exact-match null (0/4,568). fig9: answer-type breakdown (hero).
+  - social_card.png 1200×675.

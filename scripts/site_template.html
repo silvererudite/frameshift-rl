@@ -54,13 +54,13 @@ I trained the same small language model with GRPO on the same DNA tasks, changin
 <img class="fig" alt="One DNA sequence tokenized three ways: raw BPE (about 2 bases per token), per-base (1 base per token), and 6-mer groups (also split by BPE), with arrows to the reverse complement" src="data:image/png;base64,__FIG1__">
 
 <h2>Learning curves</h2>
-<p class="sub">Training reward (exact match) per GRPO step, as a 10-step rolling mean. Faint lines show the raw per-step value.</p>
+<p class="sub">Training reward (partial credit) per GRPO step, as a 10-step rolling mean. Faint lines show the raw per-step value.</p>
 <div class="ctl" id="taskBtns"></div>
 <div class="ctl" id="fmtBtns"></div>
 <div id="curves" class="plot" role="img" aria-label="Training reward curves by format"></div>
 
-<h2>The length cliff, before vs after RL</h2>
-<p class="sub">Exact-match accuracy by sequence length. Dashed = before RL, solid = after RL. Bars are 95% bootstrap CIs over prompts. __SUB__</p>
+<h2>Score by length, before vs after partial-credit RL</h2>
+<p class="sub">Partial-credit score by sequence length (exact match is 0% for reverse complement everywhere). A verbatim copy of the input scores ≈25%. Dashed = before RL, solid = after RL. Bars are 95% bootstrap CIs over prompts. __SUB__</p>
 <div class="ctl" id="taskBtns2"></div>
 <div id="cliff" class="plot" role="img" aria-label="Accuracy by length bucket, before and after RL"></div>
 
@@ -69,7 +69,7 @@ I trained the same small language model with GRPO on the same DNA tasks, changin
 <div id="err" class="plot" role="img" aria-label="Per-base error rate at token edges vs inside tokens"></div>
 
 <h2>Example browser</h2>
-<p class="sub">Pick any eval prompt to see the first of 4 sampled answers from each model. Red = base differs from the target.</p>
+<p class="sub">Pick any eval prompt to see the first of 4 sampled answers before RL and after partial-credit RL. Red = base differs from the target.</p>
 <div class="ctl"><label for="exSel">Prompt</label><select id="exSel"></select></div>
 <div class="card seqtab" id="exOut"></div>
 
@@ -106,7 +106,7 @@ function cliff(){const tr=[];D.formats.forEach(f=>['pre','post'].forEach(ph=>{co
   tr.push({x:D.buckets.map(b=>b+' bp'),y:a.map(v=>v[0]),error_y:{type:'data',symmetric:false,array:a.map(v=>v[2]-v[0]),arrayminus:a.map(v=>v[0]-v[1]),color:colorOf(f),thickness:1.2,width:0},
    mode:'lines+markers',name:`${D.label[f]} · ${ph==='pre'?'before':'after'} RL`,line:{color:colorOf(f),width:ph==='pre'?2:3,dash:ph==='pre'?'dash':'solid'},
    marker:{size:9,color:ph==='pre'?css('--card'):colorOf(f),line:{color:colorOf(f),width:2}},hovertemplate:'%{y:.0%}'})}));
-  Plotly.react('cliff',tr,layout({yaxis:{title:'exact match',range:[-.03,1.03],tickformat:'.0%',gridcolor:css('--line')}}),cfg)}
+  Plotly.react('cliff',tr,layout({yaxis:{title:'partial-credit score',range:[0,.5],tickformat:'.0%',gridcolor:css('--line')}}),cfg)}
 function err(){const tr=[];['pre','post'].forEach(ph=>['boundary','interior'].forEach(loc=>{const xs=[],ys=[];
   D.formats.forEach(f=>{const v=D.fig4[`${f}_${loc}_${ph}`];if(v){xs.push(D.label[f]);ys.push(v.err)}});
   tr.push({type:'bar',x:xs,y:ys,name:`${loc==='boundary'?'token edge':'inside token'} · ${ph==='pre'?'before':'after'} RL`,
